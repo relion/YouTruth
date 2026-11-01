@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <title>YouTruth</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="icons/icon32.png" alt="" width="24" height="24">
+    <h1>YouTruth</h1>
+    <select id="lang" aria-label="Language"></select>
+    <button id="settings" class="icon-btn" data-i18n-title="settings">⚙</button>
+  </header>
+
+  <main id="view"></main>
+
+  <footer>
+    <button id="refresh" class="link-btn" data-i18n="reanalyze" hidden></button>
+    <span class="disclaimer" data-i18n="disclaimer"></span>
+  </footer>
+
+  <script src="shared.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

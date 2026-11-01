@@ -1,0 +1,230 @@
+// YouTruth – shared settings + UI strings (loaded by popup, options and the service worker).
+
+const LANGS = {
+  he: { name: 'עברית',   dir: 'rtl', locale: 'he-IL', promptName: 'Hebrew' },
+  ro: { name: 'Română',  dir: 'ltr', locale: 'ro-RO', promptName: 'Romanian' },
+  en: { name: 'English', dir: 'ltr', locale: 'en-US', promptName: 'English' }
+};
+
+function detectLang() {
+  const l = (self.navigator?.language || 'en').slice(0, 2).toLowerCase();
+  return l === 'iw' ? 'he' : LANGS[l] ? l : 'en';
+}
+
+const DEFAULTS = { apiKey: '', model: 'gemini-2.5-flash', autoAnalyze: true, language: detectLang() };
+
+const STRINGS = {
+  he: {
+    settings: 'הגדרות',
+    reanalyze: '↻ נתח מחדש',
+    disclaimer: 'ניתוח אוטומטי של AI – עלול לטעות',
+    loading: 'Gemini צופה בסרטון ומנתח אותו…',
+    loadingHint: 'זה עשוי לקחת עד דקה. אפשר לסגור את החלון – התוצאה תישמר.',
+    credibility: 'אמינות',
+    scoreHow: 'איך נקבע הציון?',
+    scoreHowHover: 'לחץ כדי לראות איך נקבע הציון',
+    scoreHowOld: 'הסבר הציון לא זמין לניתוח זה (נשמר בגרסה קודמת). לחץ "נתח מחדש" כדי לקבל אותו.',
+    partial: 'לא ניתן היה לצפות בסרטון עצמו (פרטי, מוגבל גיל, שידור חי או ארוך מדי). הניתוח מבוסס על הכותרת והערוץ בלבד.',
+    aiSuspected: '🤖 יש סימנים לכך שהסרטון נוצר או נערך באמצעות AI.',
+    summary: 'תקציר',
+    keyPoints: 'נקודות עיקריות',
+    redFlags: 'דגלים אדומים',
+    analyzedAt: 'נותח ב-{0}',
+    notYoutube: 'פתח סרטון ב-YouTube ולחץ שוב על האייקון כדי לקבל ניתוח.',
+    noKey: 'כדי להתחיל, הגדר מפתח API של Google AI Studio.',
+    openSettings: 'פתח הגדרות',
+    tryAgain: 'נסה שוב',
+    err_UNKNOWN: 'אירעה שגיאה לא צפויה',
+    err_NETWORK: 'אין חיבור לשרת של Gemini',
+    err_QUOTA: 'חרגת ממכסת הבקשות של Gemini. נסה שוב מאוחר יותר.',
+    err_BAD_KEY: 'מפתח ה-API אינו תקין',
+    err_BAD_MODEL: 'המודל "{0}" לא נמצא. שנה אותו בהגדרות.',
+    err_EMPTY: 'Gemini לא החזיר תשובה ({0})',
+    err_PARSE: 'תשובת Gemini לא הייתה בפורמט תקין',
+    err_API: 'שגיאת Gemini: {0}',
+    cat_verified_news: 'חדשות מוסמכות',
+    cat_news_unverified: 'דיווח לא מאומת',
+    cat_opinion: 'דעה / פרשנות',
+    cat_educational: 'חינוכי / הסברתי',
+    cat_entertainment: 'בידור',
+    cat_satire: 'סאטירה / הומור',
+    cat_promotional: 'שיווקי / פרסומי',
+    cat_misleading: 'מטעה / מניפולטיבי',
+    cat_fake: 'פייק / מידע כוזב',
+    optTitle: 'YouTruth – הגדרות',
+    languageLabel: 'שפה',
+    languageHint: 'שפת הממשק ושפת הניתוח שמחזיר Gemini.',
+    apiKeyLabel: 'מפתח Gemini API',
+    show: 'הצג',
+    hide: 'הסתר',
+    apiKeyHint: 'צור מפתח ב-<a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener">Google AI Studio</a>. המפתח נשמר מקומית בדפדפן בלבד ונשלח רק לשרתי Google.',
+    modelLabel: 'מודל',
+    modelHint: 'ברירת מחדל: gemini-2.5-flash. "בדוק מפתח" יציג את המודלים הזמינים לחשבון שלך.',
+    autoLabel: 'נתח אוטומטית כל סרטון שנפתח',
+    autoHint: 'כשמופעל, הניתוח מתחיל ברגע שנכנסים לסרטון והציון מופיע על האייקון. כשכבוי, הניתוח מתבצע רק בלחיצה על האייקון (חוסך במכסת הבקשות).',
+    save: 'שמור',
+    test: 'בדוק מפתח',
+    clearCache: 'נקה תוצאות שמורות',
+    billing: 'חיוב ושימוש ב-AI Studio ↗',
+    saved: 'נשמר ✓',
+    enterKeyFirst: 'הזן מפתח קודם',
+    checking: 'בודק…',
+    keyOkModel: 'המפתח תקין ✓ (המודל {0} זמין)',
+    keyOkNoModel: 'המפתח תקין, אך המודל "{0}" לא נמצא ברשימה',
+    errorPrefix: 'שגיאה: {0}',
+    cacheCleared: 'התוצאות השמורות נמחקו'
+  },
+
+  ro: {
+    settings: 'Setări',
+    reanalyze: '↻ Analizează din nou',
+    disclaimer: 'Analiză automată AI – poate greși',
+    loading: 'Gemini vizionează și analizează videoclipul…',
+    loadingHint: 'Poate dura până la un minut. Puteți închide fereastra – rezultatul va fi salvat.',
+    credibility: 'Credibilitate',
+    scoreHow: 'Cum a fost stabilit scorul?',
+    scoreHowHover: 'Apăsați pentru a vedea cum a fost stabilit scorul',
+    scoreHowOld: 'Explicația scorului nu este disponibilă pentru această analiză (salvată de o versiune anterioară). Apăsați „Analizează din nou” pentru a o obține.',
+    partial: 'Videoclipul nu a putut fi vizionat (privat, cu restricție de vârstă, live sau prea lung). Analiza se bazează doar pe titlu și canal.',
+    aiSuspected: '🤖 Există semne că videoclipul a fost generat sau editat cu AI.',
+    summary: 'Rezumat',
+    keyPoints: 'Puncte cheie',
+    redFlags: 'Semnale de alarmă',
+    analyzedAt: 'Analizat la {0}',
+    notYoutube: 'Deschideți un videoclip pe YouTube și apăsați din nou pe pictogramă pentru analiză.',
+    noKey: 'Pentru a începe, configurați o cheie API Google AI Studio.',
+    openSettings: 'Deschide setările',
+    tryAgain: 'Încearcă din nou',
+    err_UNKNOWN: 'A apărut o eroare neașteptată',
+    err_NETWORK: 'Nu există conexiune la serverul Gemini',
+    err_QUOTA: 'Ați depășit cota de cereri Gemini. Încercați mai târziu.',
+    err_BAD_KEY: 'Cheia API nu este validă',
+    err_BAD_MODEL: 'Modelul „{0}” nu a fost găsit. Schimbați-l în setări.',
+    err_EMPTY: 'Gemini nu a returnat un răspuns ({0})',
+    err_PARSE: 'Răspunsul Gemini nu a avut un format valid',
+    err_API: 'Eroare Gemini: {0}',
+    cat_verified_news: 'Știri verificate',
+    cat_news_unverified: 'Știre neverificată',
+    cat_opinion: 'Opinie / comentariu',
+    cat_educational: 'Educațional',
+    cat_entertainment: 'Divertisment',
+    cat_satire: 'Satiră / umor',
+    cat_promotional: 'Promoțional / reclamă',
+    cat_misleading: 'Înșelător / manipulator',
+    cat_fake: 'Fals / dezinformare',
+    optTitle: 'YouTruth – Setări',
+    languageLabel: 'Limbă',
+    languageHint: 'Limba interfeței și a analizei returnate de Gemini.',
+    apiKeyLabel: 'Cheie Gemini API',
+    show: 'Arată',
+    hide: 'Ascunde',
+    apiKeyHint: 'Creați o cheie în <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener">Google AI Studio</a>. Cheia este salvată doar local în browser și trimisă numai către serverele Google.',
+    modelLabel: 'Model',
+    modelHint: 'Implicit: gemini-2.5-flash. „Verifică cheia” afișează modelele disponibile pentru contul dvs.',
+    autoLabel: 'Analizează automat fiecare videoclip deschis',
+    autoHint: 'Când este activat, analiza pornește imediat ce deschideți un videoclip, iar scorul apare pe pictogramă. Când este dezactivat, analiza rulează doar la clic pe pictogramă (economisește cota).',
+    save: 'Salvează',
+    test: 'Verifică cheia',
+    clearCache: 'Șterge rezultatele salvate',
+    billing: 'Facturare și utilizare în AI Studio ↗',
+    saved: 'Salvat ✓',
+    enterKeyFirst: 'Introduceți mai întâi o cheie',
+    checking: 'Se verifică…',
+    keyOkModel: 'Cheia este validă ✓ (modelul {0} este disponibil)',
+    keyOkNoModel: 'Cheia este validă, dar modelul „{0}” nu apare în listă',
+    errorPrefix: 'Eroare: {0}',
+    cacheCleared: 'Rezultatele salvate au fost șterse'
+  },
+
+  en: {
+    settings: 'Settings',
+    reanalyze: '↻ Re-analyze',
+    disclaimer: 'Automated AI analysis – may be wrong',
+    loading: 'Gemini is watching and analyzing the video…',
+    loadingHint: 'This may take up to a minute. You can close this window – the result will be saved.',
+    credibility: 'Credibility',
+    scoreHow: 'How was this score determined?',
+    scoreHowHover: 'Click to see how the score was determined',
+    scoreHowOld: 'No score explanation for this analysis (saved by an earlier version). Click "Re-analyze" to get one.',
+    partial: 'The video itself could not be watched (private, age-restricted, live or too long). This analysis is based on the title and channel only.',
+    aiSuspected: '🤖 There are signs this video was generated or edited with AI.',
+    summary: 'Summary',
+    keyPoints: 'Key points',
+    redFlags: 'Red flags',
+    analyzedAt: 'Analyzed {0}',
+    notYoutube: 'Open a YouTube video and click the icon again to get an analysis.',
+    noKey: 'To get started, set a Google AI Studio API key.',
+    openSettings: 'Open settings',
+    tryAgain: 'Try again',
+    err_UNKNOWN: 'An unexpected error occurred',
+    err_NETWORK: 'Cannot reach the Gemini server',
+    err_QUOTA: 'Gemini request quota exceeded. Try again later.',
+    err_BAD_KEY: 'The API key is invalid',
+    err_BAD_MODEL: 'Model "{0}" was not found. Change it in settings.',
+    err_EMPTY: 'Gemini returned no answer ({0})',
+    err_PARSE: 'Gemini returned a malformed answer',
+    err_API: 'Gemini error: {0}',
+    cat_verified_news: 'Verified news',
+    cat_news_unverified: 'Unverified report',
+    cat_opinion: 'Opinion / commentary',
+    cat_educational: 'Educational',
+    cat_entertainment: 'Entertainment',
+    cat_satire: 'Satire / humor',
+    cat_promotional: 'Promotional / ad',
+    cat_misleading: 'Misleading / manipulative',
+    cat_fake: 'Fake / disinformation',
+    optTitle: 'YouTruth – Settings',
+    languageLabel: 'Language',
+    languageHint: 'Language of the interface and of the analysis Gemini returns.',
+    apiKeyLabel: 'Gemini API key',
+    show: 'Show',
+    hide: 'Hide',
+    apiKeyHint: 'Create a key at <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener">Google AI Studio</a>. The key is stored locally in your browser and sent only to Google\'s servers.',
+    modelLabel: 'Model',
+    modelHint: 'Default: gemini-2.5-flash. "Check key" lists the models available to your account.',
+    autoLabel: 'Automatically analyze every video I open',
+    autoHint: 'When on, analysis starts as soon as you open a video and the score appears on the icon. When off, analysis runs only when you click the icon (saves quota).',
+    save: 'Save',
+    test: 'Check key',
+    clearCache: 'Clear saved results',
+    billing: 'AI Studio billing & usage ↗',
+    saved: 'Saved ✓',
+    enterKeyFirst: 'Enter a key first',
+    checking: 'Checking…',
+    keyOkModel: 'Key is valid ✓ (model {0} is available)',
+    keyOkNoModel: 'Key is valid, but model "{0}" is not in the list',
+    errorPrefix: 'Error: {0}',
+    cacheCleared: 'Saved results cleared'
+  }
+};
+
+let currentLang = DEFAULTS.language;
+
+function setLang(lang) {
+  currentLang = LANGS[lang] ? lang : 'en';
+  if (self.document) {
+    document.documentElement.lang = currentLang;
+    document.documentElement.dir = LANGS[currentLang].dir;
+  }
+}
+
+function t(key, ...args) {
+  const s = STRINGS[currentLang]?.[key] ?? STRINGS.en[key] ?? key;
+  return s.replace(/\{(\d)\}/g, (_, i) => args[i] ?? '');
+}
+
+// Fills elements marked with data-i18n (text) / data-i18n-html (trusted markup from STRINGS).
+function applyI18n(root = document) {
+  root.querySelectorAll('[data-i18n]').forEach((n) => { n.textContent = t(n.dataset.i18n); });
+  root.querySelectorAll('[data-i18n-html]').forEach((n) => { n.innerHTML = t(n.dataset.i18nHtml); });
+  root.querySelectorAll('[data-i18n-title]').forEach((n) => {
+    n.title = t(n.dataset.i18nTitle);
+    n.setAttribute('aria-label', n.title);
+  });
+}
+
+function fillLangSelect(select) {
+  select.replaceChildren(...Object.entries(LANGS).map(([code, l]) =>
+    Object.assign(document.createElement('option'), { value: code, textContent: l.name })));
+  select.value = currentLang;
+}
