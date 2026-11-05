@@ -30,6 +30,14 @@ const STRINGS = {
     keyPoints: 'נקודות עיקריות',
     redFlags: 'דגלים אדומים',
     analyzedAt: 'נותח ב-{0}',
+    statPublished: 'פורסם',
+    statViews: 'צפיות',
+    statLikes: 'לייקים',
+    statLength: 'אורך',
+    statSubs: 'מנויים',
+    statPopularity: 'פופולריות',
+    popularityHint: 'ציון פופולריות (0–100) שמחושב מקומית: היקף צפיות (50%), יחס לייקים לצפיות (25%) וצפיות ליום (25%). לא קשור לאמינות.',
+    statsUnavailable: 'פרטי הסרטון (תאריך, צפיות, לייקים) לא זמינים כרגע',
     notYoutube: 'פתח סרטון ב-YouTube ולחץ שוב על האייקון כדי לקבל ניתוח.',
     noKey: 'כדי להתחיל, הגדר מפתח API של Google AI Studio.',
     openSettings: 'פתח הגדרות',
@@ -91,6 +99,14 @@ const STRINGS = {
     keyPoints: 'Puncte cheie',
     redFlags: 'Semnale de alarmă',
     analyzedAt: 'Analizat la {0}',
+    statPublished: 'Publicat',
+    statViews: 'Vizionări',
+    statLikes: 'Aprecieri',
+    statLength: 'Durată',
+    statSubs: 'Abonați',
+    statPopularity: 'Popularitate',
+    popularityHint: 'Scor de popularitate (0–100) calculat local: numărul de vizionări (50%), raportul aprecieri/vizionări (25%) și vizionări pe zi (25%). Nu are legătură cu credibilitatea.',
+    statsUnavailable: 'Detaliile videoclipului (dată, vizionări, aprecieri) nu sunt disponibile momentan',
     notYoutube: 'Deschideți un videoclip pe YouTube și apăsați din nou pe pictogramă pentru analiză.',
     noKey: 'Pentru a începe, configurați o cheie API Google AI Studio.',
     openSettings: 'Deschide setările',
@@ -152,6 +168,14 @@ const STRINGS = {
     keyPoints: 'Key points',
     redFlags: 'Red flags',
     analyzedAt: 'Analyzed {0}',
+    statPublished: 'Published',
+    statViews: 'Views',
+    statLikes: 'Likes',
+    statLength: 'Length',
+    statSubs: 'Subscribers',
+    statPopularity: 'Popularity',
+    popularityHint: 'Popularity score (0–100), computed locally: total views (50%), likes-to-views ratio (25%) and views per day (25%). Unrelated to credibility.',
+    statsUnavailable: 'Video details (date, views, likes) are unavailable right now',
     notYoutube: 'Open a YouTube video and click the icon again to get an analysis.',
     noKey: 'To get started, set a Google AI Studio API key.',
     openSettings: 'Open settings',
@@ -227,4 +251,90 @@ function fillLangSelect(select) {
   select.replaceChildren(...Object.entries(LANGS).map(([code, l]) =>
     Object.assign(document.createElement('option'), { value: code, textContent: l.name })));
   select.value = currentLang;
+}
+
+// ---------- helpers shared by popup and service worker ----------
+
+function getVideoId(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\.|^m\./, '');
+    if (host === 'youtu.be') return u.pathname.slice(1, 12) || null;
+    if (host !== 'youtube.com') return null;
+    if (u.pathname === '/watch') return u.searchParams.get('v');
+    const m = u.pathname.match(/^\/(shorts|live|embed)\/([\w-]{11})/);
+    return m ? m[2] : null;
+  } catch {
+    return null;
+  }
+}
+
+// "1,234" / "like this video along with 246 other people" → 1234 / 246; null if there are no digits.
+const toInt = (v) => {
+  const n = parseInt(String(v ?? '').replace(/[^\d]/g, ''), 10);
+  return Number.isFinite(n) ? n : null;
+};
+
+// Video stats: { publishDate, views, likes, lengthSeconds, subscribers } – any field may be null.
+const statsComplete = (s) => !!(s && s.publishDate && s.views != null && s.likes != null);
+
+// Values of `primary` win; `fallback` only fills the gaps.
+function mergeStats(primary, fallback) {
+  if (!primary || !fallback) return primary || fallback || null;
+  const merged = { ...fallback };
+  for (const [k, v] of Object.entries(primary)) if (v != null) merged[k] = v;
+  return merged;
+}
+
+// Reads the stats of the video open in a tab (null if the player isn't ready or shows another video).
+// Throws if the page can't be scripted.
+async function readStatsFromTab(tabId, videoId) {
+  if (tabId == null || !videoId) return null;
+  if (!chrome.scripting) throw new Error('"scripting" permission missing – reload the extension');
+  const [injection] = await chrome.scripting.executeScript({
+    target: { tabId }, world: 'MAIN', func: readStatsFromPage, args: [videoId]
+  });
+  return injection?.result || null;
+}
+
+// Runs inside the YouTube page itself (MAIN world), so it must be fully self-contained
+// (hence its own copy of toInt). Reads the data of the video the user is looking at right now –
+// no extra network request, and it works with the user's own session / consent state.
+function readStatsFromPage(expectedId) {
+  const toInt = (v) => {
+    const n = parseInt(String(v ?? '').replace(/[^\d]/g, ''), 10);
+    return Number.isFinite(n) ? n : null;
+  };
+  // "246", "1,234", "1.2K", "3M" → number
+  const parseCount = (text) => {
+    const m = String(text || '').trim().match(/^([\d.,]+)\s*([KMB])?$/i);
+    if (!m) return null;
+    const mult = { K: 1e3, M: 1e6, B: 1e9 }[(m[2] || '').toUpperCase()] || 1;
+    return mult === 1 ? toInt(m[1]) : Math.round(parseFloat(m[1].replace(/,/g, '')) * mult);
+  };
+
+  const pr = document.querySelector('#movie_player')?.getPlayerResponse?.();
+  const details = pr?.videoDetails;
+  if (!details || details.videoId !== expectedId) return null; // still showing the previous video
+
+  const micro = pr.microformat?.playerMicroformatRenderer || {};
+
+  let likes = toInt(micro.likeCount);
+  if (likes == null) {
+    const btn = document.querySelector(
+      'like-button-view-model button, ytd-segmented-like-dislike-button-renderer button, #segmented-like-button button');
+    const label = btn?.getAttribute('aria-label') || '';
+    likes = toInt(label.match(/\d[\d,.\s]*/)?.[0]) ?? parseCount(btn?.textContent);
+  }
+
+  const subsText = document.querySelector('#owner-sub-count')?.textContent?.trim() || '';
+  const subscribers = subsText.replace(/\s*(subscribers?|מנויים|abona[țt]i|abonat)\s*$/i, '').trim() || null;
+
+  return {
+    publishDate: micro.publishDate || micro.uploadDate || null,
+    views: toInt(details.viewCount) ?? toInt(micro.viewCount),
+    likes,
+    lengthSeconds: toInt(details.lengthSeconds) ?? toInt(micro.lengthSeconds),
+    subscribers
+  };
 }

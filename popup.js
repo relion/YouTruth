@@ -63,9 +63,116 @@ function scoreColor(s) {
   return s >= 70 ? 'var(--green)' : s >= 40 ? 'var(--amber)' : 'var(--red)';
 }
 
+// "3 days ago" / "לפני 3 ימים" in the UI language.
+function relativeTime(date) {
+  const rtf = new Intl.RelativeTimeFormat(LANGS[currentLang].locale, { numeric: 'auto' });
+  const sec = (date.getTime() - Date.now()) / 1000;
+  const units = [['year', 31536000], ['month', 2592000], ['day', 86400], ['hour', 3600], ['minute', 60]];
+  for (const [unit, s] of units) {
+    if (Math.abs(sec) >= s) return rtf.format(Math.round(sec / s), unit);
+  }
+  return rtf.format(0, 'minute');
+}
+
+function formatDuration(total) {
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const p = (n) => String(n).padStart(2, '0');
+  return h ? `${h}:${p(m)}:${p(s)}` : `${m}:${p(s)}`;
+}
+
+// Popularity 0-100, computed locally from public numbers (nothing to do with credibility):
+//   reach      50%  total views on a log scale (100 views = 0, ~30M = 100)
+//   engagement 25%  likes / views (4% or more = 100)
+//   momentum   25%  views per day on a log scale (10/day = 0, 100K/day = 100)
+// Missing inputs are dropped and the remaining weights are renormalized.
+function popularityScore(stats, published) {
+  if (!(stats.views > 0)) return null;
+  const clamp01 = (x) => Math.max(0, Math.min(1, x));
+  const parts = [{ w: 0.5, v: clamp01((Math.log10(stats.views) - 2) / 5.5) }];
+  if (stats.likes != null) parts.push({ w: 0.25, v: clamp01(stats.likes / stats.views / 0.04) });
+  if (published && !isNaN(published)) {
+    const days = Math.max((Date.now() - published.getTime()) / 86400000, 1);
+    parts.push({ w: 0.25, v: clamp01((Math.log10(stats.views / days) - 1) / 4) });
+  }
+  const totalWeight = parts.reduce((sum, p) => sum + p.w, 0);
+  return Math.round(100 * parts.reduce((sum, p) => sum + p.w * p.v, 0) / totalWeight);
+}
+
+// Fills the popularity card: a score ring (like the credibility one, other color) with the
+// video's numbers beside it. Missing values are simply left out.
+function paintStats(box, stats, reason = '') {
+  const unavailable = () => {
+    box.className = 'stats';
+    box.replaceChildren(...[
+      el('div', {}, t('statsUnavailable')),
+      reason && el('div', { class: 'reason', dir: 'ltr' }, reason)
+    ].filter(Boolean));
+  };
+  if (!stats) return unavailable();
+
+  const locale = LANGS[currentLang].locale;
+  const num = (n) => new Intl.NumberFormat(locale).format(n);
+  const line = (label, value) => el('div', { class: 'pop-line' }, el('b', {}, `${label}: `), value);
+
+  const lines = [];
+  const published = stats.publishDate ? new Date(stats.publishDate) : null;
+  if (published && !isNaN(published)) {
+    lines.push(line(t('statPublished'),
+      `${published.toLocaleDateString(locale, { dateStyle: 'medium' })} (${relativeTime(published)})`));
+  }
+  if (stats.views != null) lines.push(line(t('statViews'), num(stats.views)));
+  if (stats.likes != null) lines.push(line(t('statLikes'), num(stats.likes)));
+  if (stats.lengthSeconds) lines.push(line(t('statLength'), formatDuration(stats.lengthSeconds)));
+  if (stats.subscribers) lines.push(line(t('statSubs'), stats.subscribers));
+  if (lines.length === 0) return unavailable();
+
+  const popularity = popularityScore(stats, published);
+  box.className = 'verdict-row pop-row';
+  box.replaceChildren(...[
+    popularity != null && el('div', { class: 'pop-box', title: t('popularityHint') },
+      el('div', { class: 'score', style: `--p:${popularity};--sc:var(--blue)` }, el('span', {}, popularity)),
+      el('div', { class: 'score-label' }, t('statPopularity'), el('span', { class: 'info' }, 'ⓘ'))),
+    el('div', { class: 'pop-lines' }, lines)
+  ].filter(Boolean));
+}
+
+// Cached analyses may be days old, so the numbers are refreshed from YouTube every time.
+async function loadStats(box, cachedStats) {
+  if (cachedStats) paintStats(box, cachedStats);
+  const reasons = []; // shown (in English) only if no stats could be found at all
+  let fresh = null;
+
+  // 1) Read straight from the open video page.
+  try {
+    fresh = await readStatsFromTab(currentTab?.id, getVideoId(currentTab?.url || ''));
+    if (!fresh) reasons.push('page: player not ready or shows another video');
+  } catch (e) {
+    reasons.push(`page: ${e.message}`);
+  }
+
+  // 2) Fall back to (or complete with) the background's watch-page fetch.
+  if (!statsComplete(fresh)) {
+    try {
+      const resp = await chrome.runtime.sendMessage({ type: 'stats', url: currentTab?.url });
+      if (!resp?.ok) reasons.push('background: fetch failed (see the service worker console)');
+      fresh = mergeStats(fresh, resp?.stats);
+    } catch (e) {
+      reasons.push(`background: ${e.message}`);
+    }
+  }
+
+  if (!box.isConnected) return;
+  if (fresh) paintStats(box, fresh);
+  else if (!cachedStats) paintStats(box, null, reasons.join(' | '));
+}
+
 function renderResult({ meta, result, partial, ts }) {
   const catColor = CATEGORY_COLORS[result.category] || 'var(--gray)';
   const score = result.credibility_score;
+  const statsBox = el('div', { class: 'stats' });
+  loadStats(statsBox, meta.stats);
 
   const list = (items, cls) =>
     el('ul', { class: cls || '' }, (items || []).map((x) => el('li', {}, x)));
@@ -94,6 +201,8 @@ function renderResult({ meta, result, partial, ts }) {
     ),
 
     renderHow(result),
+
+    statsBox,
 
     partial && el('div', { class: 'notice' }, t('partial')),
     result.ai_generated_suspected && el('div', { class: 'notice' }, t('aiSuspected')),

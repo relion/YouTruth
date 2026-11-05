@@ -107,6 +107,17 @@ footer {
 .video-title { font-weight: 600; margin: 0 0 2px; }
 .channel { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
 
+/* Popularity card: same shape as the credibility row, different color. */
+.pop-row { --c: var(--blue); margin-top: 8px; }
+.pop-box { flex-shrink: 0; text-align: center; cursor: help; }
+.pop-lines { font-size: 13px; }
+.pop-line b { font-weight: 600; color: var(--muted); }
+
+/* Shown while loading (empty → hidden) and when no stats could be found. */
+.stats { margin-top: 8px; font-size: 12px; color: var(--muted); }
+.stats:empty { display: none; }
+.stats .reason { font-size: 10px; opacity: .8; }
+
 .verdict-row {
   display: flex;
   align-items: center;

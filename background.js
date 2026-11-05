@@ -51,20 +51,6 @@ const inflight = new Map(); // "videoId:lang" -> Promise
 
 // ---------- helpers ----------
 
-function getVideoId(url) {
-  try {
-    const u = new URL(url);
-    const host = u.hostname.replace(/^www\.|^m\./, '');
-    if (host === 'youtu.be') return u.pathname.slice(1, 12) || null;
-    if (host !== 'youtube.com') return null;
-    if (u.pathname === '/watch') return u.searchParams.get('v');
-    const m = u.pathname.match(/^\/(shorts|live|embed)\/([\w-]{11})/);
-    return m ? m[2] : null;
-  } catch {
-    return null;
-  }
-}
-
 const watchUrl = (id) => `https://www.youtube.com/watch?v=${id}`;
 
 async function getSettings() {
@@ -127,6 +113,7 @@ Video metadata:
 - URL: ${meta.url}
 - Title: ${meta.title || 'unknown'}
 - Channel: ${meta.channel || 'unknown'}
+- Published: ${meta.stats?.publishDate || 'unknown'}
 
 Tasks:
 1. Classify the nature of the video into exactly one category:
@@ -224,11 +211,95 @@ async function fetchMeta(videoId) {
   return { url };
 }
 
-async function runAnalysis(videoId, lang) {
+// ---------- video stats (publish date, views, likes…) ----------
+// Scraped from the public watch page – no extra API key needed. Best effort: any field may be null.
+
+const STATS_TTL = 5 * 60 * 1000;
+const statsCache = new Map(); // videoId -> { ts, promise }
+
+// Pulls a JSON object assigned in an inline <script> (e.g. `ytInitialPlayerResponse = {...};`).
+function extractJson(html, marker) {
+  const i = html.indexOf(marker);
+  if (i < 0) return null;
+  const start = html.indexOf('{', i);
+  if (start < 0) return null;
+  let depth = 0, inStr = false, esc = false;
+  for (let k = start; k < html.length; k++) {
+    const c = html[k];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === '{') depth++;
+    else if (c === '}' && --depth === 0) {
+      try { return JSON.parse(html.slice(start, k + 1)); } catch { return null; }
+    }
+  }
+  return null;
+}
+
+async function scrapeStats(videoId) {
+  const res = await fetch(`${watchUrl(videoId)}&hl=en`, { credentials: 'include' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (/consent\./.test(res.url)) throw new Error('consent redirect');
+  const html = await res.text();
+
+  const player = extractJson(html, 'ytInitialPlayerResponse');
+  if (!player) throw new Error('no player data in page');
+  const details = player.videoDetails || {};
+  const micro = player.microformat?.playerMicroformatRenderer || {};
+
+  const likes =
+    toInt(micro.likeCount) ??
+    toInt(html.match(/like this video along with ([\d,.\s]+) other people/)?.[1]) ??
+    toInt(html.match(/"label":"([\d,]+) likes"/)?.[1]) ??
+    toInt(html.match(/"likeCount":"?(\d+)"?/)?.[1]);
+
+  const subscribers =
+    html.match(/"subscriberCountText":\{.{0,300}?"simpleText":"([\d.,]+\s*[KMB]?)\s*subscribers?"/s)?.[1]?.trim() || null;
+
+  return {
+    publishDate: micro.publishDate || micro.uploadDate || null,
+    views: toInt(details.viewCount) ?? toInt(micro.viewCount),
+    likes,
+    lengthSeconds: toInt(details.lengthSeconds) ?? toInt(micro.lengthSeconds),
+    subscribers
+  };
+}
+
+// Fallback source (cached for a few minutes); resolves to null on failure.
+function fetchStats(videoId) {
+  const hit = statsCache.get(videoId);
+  if (hit && Date.now() - hit.ts < STATS_TTL) return hit.promise;
+  const promise = scrapeStats(videoId).catch((e) => {
+    console.warn('YouTruth: stats fetch failed', e);
+    statsCache.delete(videoId);
+    return null;
+  });
+  statsCache.set(videoId, { ts: Date.now(), promise });
+  return promise;
+}
+
+// The open tab is the primary source (what the user actually sees); the watch-page fetch fills gaps.
+async function getStats(tabId, videoId) {
+  let fromTab = null;
+  try {
+    fromTab = await readStatsFromTab(tabId, videoId);
+  } catch (e) {
+    console.warn('YouTruth: reading stats from the tab failed', e);
+  }
+  return statsComplete(fromTab) ? fromTab : mergeStats(fromTab, await fetchStats(videoId));
+}
+
+async function runAnalysis(videoId, lang, tabId) {
   const settings = await getSettings();
   if (!settings.apiKey) throw new AppError('NO_KEY');
 
-  const meta = await fetchMeta(videoId);
+  const [meta, stats] = await Promise.all([fetchMeta(videoId), getStats(tabId, videoId)]);
+  meta.stats = stats; // kept in the cache as a fallback if the popup can't refresh it
   let result;
   let partial = false;
   try {
@@ -251,7 +322,7 @@ async function runAnalysis(videoId, lang) {
   return { videoId, lang, meta, result, partial, model: settings.model, ts: Date.now() };
 }
 
-function analyze(videoId, lang, { force = false } = {}) {
+function analyze(videoId, lang, { force = false, tabId } = {}) {
   const key = cacheKey(videoId, lang);
   if (inflight.has(key)) return inflight.get(key);
   const p = (async () => {
@@ -259,7 +330,7 @@ function analyze(videoId, lang, { force = false } = {}) {
       const cached = await getCached(key);
       if (cached) return cached;
     }
-    const entry = await runAnalysis(videoId, lang);
+    const entry = await runAnalysis(videoId, lang, tabId);
     await putCached(key, entry);
     return entry;
   })().finally(() => inflight.delete(key));
@@ -270,7 +341,7 @@ function analyze(videoId, lang, { force = false } = {}) {
 async function analyzeForTab(tabId, videoId, lang, opts) {
   setBadge(tabId, 'loading');
   try {
-    const entry = await analyze(videoId, lang, opts);
+    const entry = await analyze(videoId, lang, { ...opts, tabId });
     setBadge(tabId, 'done', entry.result.credibility_score);
     return entry;
   } catch (e) {
@@ -296,6 +367,12 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.type === 'stats') {
+    const id = getVideoId(msg.url || '');
+    if (!id) { sendResponse({ ok: false }); return false; }
+    fetchStats(id).then((stats) => sendResponse({ ok: !!stats, stats }));
+    return true;
+  }
   if (msg?.type !== 'analyze') return false;
   const videoId = getVideoId(msg.url || '');
   if (!videoId) {
