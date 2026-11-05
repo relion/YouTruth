@@ -41,10 +41,11 @@ const RESPONSE_SCHEMA = {
     summary: { type: 'STRING', description: 'Summary of the video, 3-6 sentences' },
     key_points: { type: 'ARRAY', items: { type: 'STRING' } },
     red_flags: { type: 'ARRAY', items: { type: 'STRING' } },
-    ai_generated_suspected: { type: 'BOOLEAN' }
+    ai_generated_suspected: { type: 'BOOLEAN' },
+    title_translated: { type: 'STRING', description: 'The video title translated into the target language (unchanged if already in it)' }
   },
-  required: ['category', 'credibility_score', 'score_explanation', 'score_factors', 'verdict', 'summary', 'key_points', 'red_flags', 'ai_generated_suspected'],
-  propertyOrdering: ['category', 'credibility_score', 'score_explanation', 'score_factors', 'verdict', 'summary', 'key_points', 'red_flags', 'ai_generated_suspected']
+  required: ['category', 'credibility_score', 'score_explanation', 'score_factors', 'verdict', 'summary', 'key_points', 'red_flags', 'ai_generated_suspected', 'title_translated'],
+  propertyOrdering: ['category', 'credibility_score', 'score_explanation', 'score_factors', 'verdict', 'summary', 'key_points', 'red_flags', 'ai_generated_suspected', 'title_translated']
 };
 
 const inflight = new Map(); // "videoId:lang" -> Promise
@@ -133,6 +134,8 @@ Tasks:
 3. List concrete red_flags (empty array if none) and key_points (3-6 items).
 4. Set ai_generated_suspected=true only if there are visible/audible signs of synthetic media.
 5. Write a summary of what the video says/shows.
+6. Provide title_translated: the video title translated into ${language}. If the title is already in ${language},
+   return it unchanged. Keep proper names (people, places, brands, channel names) as they are commonly written.
 
 Rules:
 - Today's date is ${today}. Events after your knowledge cutoff are NOT evidence of fabrication;
@@ -318,6 +321,7 @@ async function runAnalysis(videoId, lang, tabId) {
 
   if (!CATEGORIES.includes(result.category)) result.category = 'news_unverified';
   result.credibility_score = Math.max(0, Math.min(100, Math.round(Number(result.credibility_score) || 0)));
+  if (typeof result.title_translated !== 'string') result.title_translated = '';
 
   return { videoId, lang, meta, result, partial, model: settings.model, ts: Date.now() };
 }

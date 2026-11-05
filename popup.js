@@ -178,6 +178,27 @@ function renderResult({ videoId, meta, result, partial, ts }) {
     el('ul', { class: cls || '' }, (items || []).map((x) => el('li', {}, x)));
 
   // Video titles may be in another script than the UI; let the browser pick their direction.
+  // When the title was translated, clicking it toggles between the translation and the original.
+  const translated = result.title_translated;
+  const original = meta.title;
+  const titleEl = (translated || original) && el('p', { class: 'video-title', dir: 'auto' }, translated || original);
+  if (titleEl && translated && original && translated.trim() !== original.trim()) {
+    let showingOriginal = false;
+    const toggleTitle = () => {
+      showingOriginal = !showingOriginal;
+      titleEl.textContent = showingOriginal ? original : translated;
+      titleEl.title = t(showingOriginal ? 'titleShowTranslated' : 'titleShowOriginal');
+    };
+    titleEl.classList.add('toggleable');
+    titleEl.title = t('titleShowOriginal');
+    titleEl.setAttribute('role', 'button');
+    titleEl.tabIndex = 0;
+    titleEl.addEventListener('click', toggleTitle);
+    titleEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleTitle(); }
+    });
+  }
+
   show(
     el('div', { class: 'title-row' },
       el('img', {
@@ -187,7 +208,7 @@ function renderResult({ videoId, meta, result, partial, ts }) {
         onerror: (e) => e.target.remove() // offline etc.: no empty frame
       }),
       el('div', {},
-        meta.title && el('p', { class: 'video-title', dir: 'auto' }, meta.title),
+        titleEl,
         meta.channel && el('div', { class: 'channel', dir: 'auto' }, meta.channel))
     ),
 

@@ -105,6 +105,9 @@ footer {
 }
 
 .video-title { font-weight: 600; margin: 0 0 2px; }
+.video-title.toggleable { cursor: pointer; border-radius: 4px; }
+.video-title.toggleable:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
+.video-title.toggleable:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .channel { color: var(--muted); font-size: 12px; }
 .title-row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
 .title-row > div { min-width: 0; }
