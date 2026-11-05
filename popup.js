@@ -168,7 +168,7 @@ async function loadStats(box, cachedStats) {
   else if (!cachedStats) paintStats(box, null, reasons.join(' | '));
 }
 
-function renderResult({ meta, result, partial, ts }) {
+function renderResult({ videoId, meta, result, partial, ts }) {
   const catColor = CATEGORY_COLORS[result.category] || 'var(--gray)';
   const score = result.credibility_score;
   const statsBox = el('div', { class: 'stats' });
@@ -179,8 +179,17 @@ function renderResult({ meta, result, partial, ts }) {
 
   // Video titles may be in another script than the UI; let the browser pick their direction.
   show(
-    meta.title && el('p', { class: 'video-title', dir: 'auto' }, meta.title),
-    meta.channel && el('div', { class: 'channel', dir: 'auto' }, meta.channel),
+    el('div', { class: 'title-row' },
+      el('img', {
+        class: 'thumb',
+        src: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+        alt: '', width: 64, height: 36,
+        onerror: (e) => e.target.remove() // offline etc.: no empty frame
+      }),
+      el('div', {},
+        meta.title && el('p', { class: 'video-title', dir: 'auto' }, meta.title),
+        meta.channel && el('div', { class: 'channel', dir: 'auto' }, meta.channel))
+    ),
 
     el('div', { class: 'verdict-row', style: `--c:${catColor}` },
       el('div', {
