@@ -125,7 +125,6 @@ function paintStats(box, stats, reason = '') {
   if (stats.views != null) lines.push(line(t('statViews'), num(stats.views)));
   if (stats.likes != null) lines.push(line(t('statLikes'), num(stats.likes)));
   if (stats.lengthSeconds) lines.push(line(t('statLength'), formatDuration(stats.lengthSeconds)));
-  if (stats.subscribers) lines.push(line(t('statSubs'), stats.subscribers));
   if (lines.length === 0) return unavailable();
 
   const popularity = popularityScore(stats, published);
@@ -181,12 +180,19 @@ function renderResult({ videoId, meta, result, partial, ts }) {
   // When the title was translated, clicking it toggles between the translation and the original.
   const translated = result.title_translated;
   const original = meta.title;
-  const titleEl = (translated || original) && el('p', { class: 'video-title', dir: 'auto' }, translated || original);
+  // The translation is always in the UI language, so force the UI direction (a Hebrew title that starts
+  // with a Latin word would otherwise be laid out LTR by dir="auto"). The original keeps dir="auto".
+  const uiDir = LANGS[currentLang].dir;
+  const titleEl = (translated || original) && el('p', {
+    class: 'video-title',
+    dir: translated ? uiDir : 'auto'
+  }, translated || original);
   if (titleEl && translated && original && translated.trim() !== original.trim()) {
     let showingOriginal = false;
     const toggleTitle = () => {
       showingOriginal = !showingOriginal;
       titleEl.textContent = showingOriginal ? original : translated;
+      titleEl.dir = showingOriginal ? 'auto' : uiDir;
       titleEl.title = t(showingOriginal ? 'titleShowTranslated' : 'titleShowOriginal');
     };
     titleEl.classList.add('toggleable');
@@ -209,7 +215,11 @@ function renderResult({ videoId, meta, result, partial, ts }) {
       }),
       el('div', {},
         titleEl,
-        meta.channel && el('div', { class: 'channel', dir: 'auto' }, meta.channel))
+        meta.channel && el('div', { class: 'channel', dir: 'auto' },
+          // Subscriber count comes from the stats saved with the analysis (it barely changes).
+          meta.stats?.subscribers
+            ? `${meta.channel} · ${meta.stats.subscribers} ${t('statSubs').toLowerCase()}`
+            : meta.channel))
     ),
 
     el('div', { class: 'verdict-row', style: `--c:${catColor}` },
