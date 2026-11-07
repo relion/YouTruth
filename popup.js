@@ -15,7 +15,7 @@ const refreshBtn = document.getElementById('refresh');
 const langSelect = document.getElementById('lang');
 let currentTab = null;
 
-document.getElementById('settings').addEventListener('click', () => chrome.runtime.openOptionsPage());
+document.getElementById('close').addEventListener('click', () => window.close());
 refreshBtn.addEventListener('click', () => run(true));
 langSelect.addEventListener('change', async () => {
   setLang(langSelect.value);

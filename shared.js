@@ -16,6 +16,7 @@ const DEFAULTS = { apiKey: '', model: 'gemini-2.5-flash', autoAnalyze: true, lan
 const STRINGS = {
   he: {
     settings: 'הגדרות',
+    close: 'סגור',
     reanalyze: '↻ נתח מחדש',
     disclaimer: 'ניתוח אוטומטי של AI – עלול לטעות',
     loading: 'Gemini צופה בסרטון ומנתח אותו…',
@@ -87,6 +88,7 @@ const STRINGS = {
 
   ro: {
     settings: 'Setări',
+    close: 'Închide',
     reanalyze: '↻ Analizează din nou',
     disclaimer: 'Analiză automată AI – poate greși',
     loading: 'Gemini vizionează și analizează videoclipul…',
@@ -158,6 +160,7 @@ const STRINGS = {
 
   en: {
     settings: 'Settings',
+    close: 'Close',
     reanalyze: '↻ Re-analyze',
     disclaimer: 'Automated AI analysis – may be wrong',
     loading: 'Gemini is watching and analyzing the video…',

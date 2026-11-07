@@ -89,6 +89,18 @@ footer {
   border-radius: 6px;
   padding: 2px 4px;
 }
+.close-btn {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: inherit;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.close-btn:hover { opacity: .75; }
 .link-btn { color: var(--blue); font-size: 12px; padding: 0; }
 .icon-btn:hover, .link-btn:hover { opacity: .75; }
 
