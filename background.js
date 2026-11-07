@@ -89,18 +89,143 @@ class AppError extends Error {
 
 // ---------- badge ----------
 
-function setBadge(tabId, state, score) {
-  if (tabId == null) return;
+const DEBUG = false; // set to true to log every icon-state decision to the service worker console
+const log = (...args) => { if (DEBUG) console.log('[YouTruth]', ...args); };
+
+// While waiting/loading, the toolbar icon itself is redrawn: the logo with a small dark pill in its
+// corner – an hourglass while waiting, three "scrolling" dots while Gemini works. (Badge text is too
+// small and cramped for that: "…" renders as a dash.) Other states use the normal badge text.
+
+const ICON_PATHS = { 16: 'icons/icon16.png', 32: 'icons/icon32.png', 48: 'icons/icon48.png', 128: 'icons/icon128.png' };
+const iconBitmaps = {};          // size -> ImageBitmap of the logo
+const iconAnim = new Map();      // tabId -> { timer, token }
+let iconToken = 0;
+
+async function logoBitmap(size) {
+  if (!iconBitmaps[size]) {
+    const blob = await (await fetch(chrome.runtime.getURL(ICON_PATHS[size]))).blob();
+    iconBitmaps[size] = await createImageBitmap(blob);
+  }
+  return iconBitmaps[size];
+}
+
+// kind: 'dots' (frame = which dot is lit) or 'hourglass'
+async function drawIcon(size, kind, frame = 0) {
+  const canvas = new OffscreenCanvas(size, size);
+  const g = canvas.getContext('2d');
+  g.drawImage(await logoBitmap(size), 0, 0, size, size);
+
+  const w = Math.round(size * 0.8), h = Math.round(size * 0.46);
+  const x = size - w, y = size - h, r = h / 2;
+  g.beginPath();
+  g.roundRect(x, y, w, h, r);
+  g.fillStyle = '#2b2b2b';
+  g.fill();
+  g.lineWidth = Math.max(1, size / 16);
+  g.strokeStyle = '#ffffff';
+  g.stroke();
+
+  if (kind === 'dots') {
+    for (let i = 0; i < 3; i++) {
+      const lit = i === frame;
+      g.beginPath();
+      g.arc(x + w * (0.25 + i * 0.25), y + h / 2, size * (lit ? 0.095 : 0.065), 0, Math.PI * 2);
+      g.fillStyle = lit ? '#ffffff' : '#8a8a8a';
+      g.fill();
+    }
+  } else if (kind === 'question') {
+    // "?" = not analyzed automatically; click the icon to analyze
+    g.fillStyle = '#ffffff';
+    g.font = `bold ${Math.round(h * 0.95)}px Arial, sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('?', x + w / 2, y + h / 2 + size * 0.02);
+  } else {
+    // hourglass: two triangles meeting in the middle
+    const cx = x + w / 2, cy = y + h / 2, hw = h * 0.28, hh = h * 0.34;
+    g.beginPath();
+    g.moveTo(cx - hw, cy - hh); g.lineTo(cx + hw, cy - hh); g.lineTo(cx, cy);
+    g.moveTo(cx - hw, cy + hh); g.lineTo(cx + hw, cy + hh); g.lineTo(cx, cy);
+    g.fillStyle = '#ffffff';
+    g.fill();
+  }
+  return g.getImageData(0, 0, size, size);
+}
+
+function stopIconAnim(tabId) {
+  const a = iconAnim.get(tabId);
+  if (a) clearInterval(a.timer);
+  iconAnim.delete(tabId);
+}
+
+async function paintIcon(tabId, anim) {
+  const { kind, frame, token } = anim;
+  const imageData = { 16: await drawIcon(16, kind, frame), 32: await drawIcon(32, kind, frame) };
+  // Drop the result if the state changed (or another animation started) while drawing.
+  if (iconAnim.get(tabId)?.token !== token) return;
+  chrome.action.setIcon({ tabId, imageData }).catch(() => {});
+}
+
+// Repaints every 350 ms. Besides animating the dots, this also puts the icon back by itself if
+// Chrome resets the tab's icon during a page navigation.
+function startIconAnim(tabId, kind) {
+  stopIconAnim(tabId);
+  const anim = { kind, frame: 0, token: ++iconToken, timer: null };
+  iconAnim.set(tabId, anim);
+  paintIcon(tabId, anim).catch(() => {});
+  if (kind === 'question') return; // static: painted once (and again on tab events), no timer
+  anim.timer = setInterval(() => {
+    if (kind === 'dots') anim.frame = (anim.frame + 1) % 3;
+    paintIcon(tabId, anim).catch(() => {});
+  }, 350);
+}
+
+// tabId -> { state, score }: the single source of truth for what a tab's icon should show.
+// Chrome clears per-tab icon/badge values when a page navigates, so the state is re-applied
+// from here on tab events (see the listeners in "events").
+const tabState = new Map();
+
+function applyState(tabId) {
+  const { state, score } = tabState.get(tabId) || { state: 'clear' };
   const set = (text, color) => {
     chrome.action.setBadgeText({ tabId, text }).catch(() => {});
     if (color) chrome.action.setBadgeBackgroundColor({ tabId, color }).catch(() => {});
   };
-  if (state === 'clear') return set('');
-  if (state === 'loading') return set('…', '#757575');
+
+  if (state === 'loading' || state === 'waiting' || state === 'manual') {
+    set('');
+    const kind = state === 'loading' ? 'dots' : state === 'waiting' ? 'hourglass' : 'question';
+    const running = iconAnim.get(tabId);
+    if (running?.kind === kind) paintIcon(tabId, running).catch(() => {}); // repaint right away
+    else startIconAnim(tabId, kind);
+    return;
+  }
+
+  // Back to the normal logo.
+  if (iconAnim.has(tabId)) {
+    stopIconAnim(tabId);
+    chrome.action.setIcon({ tabId, path: ICON_PATHS }).catch(() => {});
+  }
   if (state === 'error') return set('!', '#9e9e9e');
-  const color = score >= 70 ? '#2e7d32' : score >= 40 ? '#f9a825' : '#c62828';
-  set(String(score), color);
+  if (state === 'done') return set(String(score), score >= 70 ? '#2e7d32' : score >= 40 ? '#f9a825' : '#c62828');
+  set('');
 }
+
+function setBadge(tabId, state, score) {
+  if (tabId == null) return;
+  log(`tab ${tabId}: ${state}${score != null ? ' ' + score : ''}`);
+  tabState.set(tabId, { state, score });
+  applyState(tabId);
+}
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  stopIconAnim(tabId);
+  tabState.delete(tabId);
+});
+
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  if (tabState.has(tabId)) applyState(tabId);
+});
 
 // ---------- Gemini ----------
 
@@ -342,32 +467,110 @@ function analyze(videoId, lang, { force = false, tabId } = {}) {
   return p;
 }
 
+// The video each tab currently shows. An analysis that finishes after the viewer moved on must not
+// paint its result onto the new video's icon.
+const tabVideo = new Map();
+const isCurrent = (tabId, videoId) => !tabVideo.has(tabId) || tabVideo.get(tabId) === videoId;
+
 async function analyzeForTab(tabId, videoId, lang, opts) {
-  setBadge(tabId, 'loading');
+  if (isCurrent(tabId, videoId)) setBadge(tabId, 'loading');
   try {
     const entry = await analyze(videoId, lang, { ...opts, tabId });
-    setBadge(tabId, 'done', entry.result.credibility_score);
+    if (isCurrent(tabId, videoId)) setBadge(tabId, 'done', entry.result.credibility_score);
     return entry;
   } catch (e) {
-    setBadge(tabId, e.code === 'NO_KEY' ? 'clear' : 'error');
+    if (isCurrent(tabId, videoId)) setBadge(tabId, e.code === 'NO_KEY' ? 'clear' : 'error');
     throw e;
   }
 }
 
 // ---------- events ----------
 
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+// Shorts are scrolled through quickly, so a Short is analyzed only after the viewer has stayed on it
+// for `shortsDelay` seconds (0 = no waiting). tabId -> { videoId, timer }
+const pendingShorts = new Map();
+const latestUrl = new Map(); // tabId -> last URL seen (to drop stale async handlers)
+
+function cancelPending(tabId) {
+  const p = pendingShorts.get(tabId);
+  if (p) { clearTimeout(p.timer); pendingShorts.delete(tabId); }
+}
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  cancelPending(tabId);
+  latestUrl.delete(tabId);
+  tabVideo.delete(tabId);
+});
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+  // Chrome wipes a tab's icon/badge when its page navigates (also on reload, which reports no URL
+  // change). Paint the remembered state again as the load progresses and once it is done.
+  if (changeInfo.status && tabState.has(tabId)) {
+    log(`tab ${tabId}: status ${changeInfo.status} -> re-apply ${tabState.get(tabId).state}`);
+    applyState(tabId);
+    if (changeInfo.status === 'complete') setTimeout(() => tabState.has(tabId) && applyState(tabId), 800);
+  }
+
   // YouTube is a SPA: pushState navigation also reports changeInfo.url.
   if (!changeInfo.url) return;
-  const videoId = getVideoId(changeInfo.url);
-  if (!videoId) return setBadge(tabId, 'clear');
+  const url = changeInfo.url;
+  const videoId = getVideoId(url);
+  log(`tab ${tabId}: url ${url} (video ${videoId || 'none'})`);
 
-  const { autoAnalyze, apiKey, language } = await getSettings();
+  // The same video reported again (e.g. SPA + full load events): nothing new to decide.
+  if (videoId && tabVideo.get(tabId) === videoId && latestUrl.get(tabId) === url) {
+    if (tabState.has(tabId)) applyState(tabId);
+    return;
+  }
+  latestUrl.set(tabId, url);
+  if (videoId) tabVideo.set(tabId, videoId); else tabVideo.delete(tabId);
+
+  cancelPending(tabId); // the viewer moved on
+  setBadge(tabId, 'clear'); // drop the previous video's state at once
+  if (!videoId) return;
+  await decideAnalysis(tabId, url, videoId);
+});
+
+// What to do for the video a tab shows: show a saved result, analyze now, wait first (Shorts), or
+// leave it to the user ("?" on the icon).
+async function decideAnalysis(tabId, url, videoId) {
+  const { autoAnalyze, shortsDelay, apiKey, language } = await getSettings();
+  if (latestUrl.get(tabId) !== url) return; // navigated again while reading the settings
+
   const cached = await getCached(cacheKey(videoId, language));
+  if (latestUrl.get(tabId) !== url) return;
   if (cached) return setBadge(tabId, 'done', cached.result.credibility_score);
 
-  if (autoAnalyze && apiKey) analyzeForTab(tabId, videoId, language).catch(() => {});
-  else setBadge(tabId, 'clear');
+  if (!apiKey) return log(`tab ${tabId}: no API key`); // icon stays plain; the popup guides to settings
+  if (!autoAnalyze) { log(`tab ${tabId}: auto-analyze is off`); return setBadge(tabId, 'manual'); }
+
+  const delay = Math.max(0, Number(shortsDelay) || 0);
+  if (!isShortsUrl(url) || delay === 0) {
+    analyzeForTab(tabId, videoId, language).catch(() => {});
+    return;
+  }
+
+  // A Short: wait `delay` seconds on the same one first (hourglass on the icon).
+  cancelPending(tabId);
+  setBadge(tabId, 'waiting');
+  const timer = setTimeout(async () => {
+    pendingShorts.delete(tabId);
+    const tab = await chrome.tabs.get(tabId).catch(() => null); // null = the tab was closed
+    if (!tab || getVideoId(tab.url || '') !== videoId) return;  // closed, or the viewer moved on
+    if (!tab.active) return setBadge(tabId, 'manual');          // hidden tab: don't spend a request
+    analyzeForTab(tabId, videoId, language).catch(() => {});
+  }, delay * 1000);
+  pendingShorts.set(tabId, { videoId, timer });
+}
+
+// Switching to a tab whose Short was skipped because the tab was hidden: decide again now.
+chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+  if (tabState.get(tabId)?.state !== 'manual') return;
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  const videoId = getVideoId(tab?.url || '');
+  if (!videoId || !isShortsUrl(tab.url) || pendingShorts.has(tabId)) return;
+  latestUrl.set(tabId, tab.url);
+  await decideAnalysis(tabId, tab.url, videoId);
 });
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -382,6 +585,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (!videoId) {
     sendResponse({ ok: false, code: 'NOT_YOUTUBE' });
     return false;
+  }
+  if (msg.tabId != null) {
+    tabVideo.set(msg.tabId, videoId); // the popup shows this tab's current video
+    cancelPending(msg.tabId);         // the user asked for it: no need to wait out the Short delay
   }
   getSettings()
     .then(({ language }) => analyzeForTab(msg.tabId, videoId, msg.lang || language, { force: !!msg.force }))

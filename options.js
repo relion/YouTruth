@@ -21,6 +21,7 @@ async function load() {
   $('model').value = s.model;
   $('autoAnalyze').checked = s.autoAnalyze;
   $('showDetails').checked = s.showDetails;
+  $('shortsDelay').value = s.shortsDelay;
   refreshTexts();
 }
 
@@ -37,7 +38,12 @@ $('toggleKey').addEventListener('click', () => {
 });
 
 $('save').addEventListener('click', async () => {
+  const delay = parseInt($('shortsDelay').value, 10);
+  const shortsDelay = Number.isFinite(delay) ? Math.max(0, Math.min(60, delay)) : DEFAULTS.shortsDelay;
+  $('shortsDelay').value = shortsDelay;
+  await chrome.storage.local.remove('autoShorts'); // old setting, no longer used
   await chrome.storage.local.set({
+    shortsDelay,
     language: currentLang,
     apiKey: $('apiKey').value.trim(),
     model: $('model').value.trim() || DEFAULTS.model,

@@ -14,6 +14,7 @@
     label { display:block; font-weight:600; margin:20px 0 6px; }
     .hint { color:var(--muted); font-size:13px; margin:4px 0 0; }
     .row { display:flex; gap:8px; }
+    input[type=number] { padding:8px 10px; font:inherit; color:inherit; background:var(--bg); border:1px solid var(--border); border-radius:6px; }
     input[type=text], input[type=password], select {
       flex:1; width:100%; padding:8px 10px; font:inherit; color:inherit;
       background:var(--bg); border:1px solid var(--border); border-radius:6px;
@@ -58,6 +59,10 @@
 
     <label class="check"><input id="autoAnalyze" type="checkbox"> <span data-i18n="autoLabel"></span></label>
     <p class="hint" data-i18n="autoHint"></p>
+
+    <label for="shortsDelay" data-i18n="shortsDelayLabel"></label>
+    <p class="hint" style="margin:0 0 6px" data-i18n="shortsDelayHint"></p>
+    <input id="shortsDelay" type="number" min="0" max="60" step="1" style="width:90px">
 
     <label class="check"><input id="showDetails" type="checkbox"> <span data-i18n="detailsLabel"></span></label>
     <p class="hint" data-i18n="detailsHint"></p>
