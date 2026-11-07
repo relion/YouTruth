@@ -14,6 +14,7 @@ const view = document.getElementById('view');
 const refreshBtn = document.getElementById('refresh');
 const langSelect = document.getElementById('lang');
 let currentTab = null;
+let showDetails = DEFAULTS.showDetails; // "Show Details" setting: key points are listed only when on
 
 document.getElementById('close').addEventListener('click', () => window.close());
 refreshBtn.addEventListener('click', () => run(true));
@@ -249,7 +250,7 @@ function renderResult({ videoId, meta, result, partial, ts }) {
 
     el('section', {}, el('h2', {}, t('summary')), el('p', {}, result.summary)),
 
-    result.key_points?.length > 0 &&
+    showDetails && result.key_points?.length > 0 &&
       el('section', {}, el('h2', {}, t('keyPoints')), list(result.key_points)),
 
     result.red_flags?.length > 0 &&
@@ -322,8 +323,9 @@ async function run(force = false) {
 }
 
 (async () => {
-  const { language } = await chrome.storage.local.get(DEFAULTS);
-  setLang(language);
+  const settings = await chrome.storage.local.get(DEFAULTS);
+  showDetails = settings.showDetails;
+  setLang(settings.language);
   fillLangSelect(langSelect);
   applyI18n();
   run();

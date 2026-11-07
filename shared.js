@@ -11,7 +11,7 @@ function detectLang() {
   return l === 'iw' ? 'he' : LANGS[l] ? l : 'en';
 }
 
-const DEFAULTS = { apiKey: '', model: 'gemini-2.5-flash', autoAnalyze: true, language: detectLang() };
+const DEFAULTS = { apiKey: '', model: 'gemini-2.5-flash', autoAnalyze: true, showDetails: true, language: detectLang() };
 
 const STRINGS = {
   he: {
@@ -73,6 +73,8 @@ const STRINGS = {
     modelHint: 'ברירת מחדל: gemini-2.5-flash. "בדוק מפתח" יציג את המודלים הזמינים לחשבון שלך.',
     autoLabel: 'נתח אוטומטית כל סרטון שנפתח',
     autoHint: 'כשמופעל, הניתוח מתחיל ברגע שנכנסים לסרטון והציון מופיע על האייקון. כשכבוי, הניתוח מתבצע רק בלחיצה על האייקון (חוסך במכסת הבקשות).',
+    detailsLabel: 'הצג פרטים',
+    detailsHint: 'כשמסומן, הפופאפ מציג גם את הנקודות העיקריות של הסרטון. כשלא מסומן, הן אינן מוצגות.',
     save: 'שמור',
     test: 'בדוק מפתח',
     clearCache: 'נקה תוצאות שמורות',
@@ -145,6 +147,8 @@ const STRINGS = {
     modelHint: 'Implicit: gemini-2.5-flash. „Verifică cheia” afișează modelele disponibile pentru contul dvs.',
     autoLabel: 'Analizează automat fiecare videoclip deschis',
     autoHint: 'Când este activat, analiza pornește imediat ce deschideți un videoclip, iar scorul apare pe pictogramă. Când este dezactivat, analiza rulează doar la clic pe pictogramă (economisește cota).',
+    detailsLabel: 'Afișează detalii',
+    detailsHint: 'Când este bifat, fereastra afișează și punctele cheie ale videoclipului. Când nu este bifat, acestea nu sunt afișate.',
     save: 'Salvează',
     test: 'Verifică cheia',
     clearCache: 'Șterge rezultatele salvate',
@@ -217,6 +221,8 @@ const STRINGS = {
     modelHint: 'Default: gemini-2.5-flash. "Check key" lists the models available to your account.',
     autoLabel: 'Automatically analyze every video I open',
     autoHint: 'When on, analysis starts as soon as you open a video and the score appears on the icon. When off, analysis runs only when you click the icon (saves quota).',
+    detailsLabel: 'Show Details',
+    detailsHint: 'When checked, the popup also shows the video\'s key points. When unchecked, they are not shown.',
     save: 'Save',
     test: 'Check key',
     clearCache: 'Clear saved results',

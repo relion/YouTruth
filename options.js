@@ -20,6 +20,7 @@ async function load() {
   $('apiKey').value = s.apiKey;
   $('model').value = s.model;
   $('autoAnalyze').checked = s.autoAnalyze;
+  $('showDetails').checked = s.showDetails;
   refreshTexts();
 }
 
@@ -40,7 +41,8 @@ $('save').addEventListener('click', async () => {
     language: currentLang,
     apiKey: $('apiKey').value.trim(),
     model: $('model').value.trim() || DEFAULTS.model,
-    autoAnalyze: $('autoAnalyze').checked
+    autoAnalyze: $('autoAnalyze').checked,
+    showDetails: $('showDetails').checked
   });
   setStatus(t('saved'), 'ok');
 });
