@@ -279,6 +279,9 @@ Rules:
 - Describe positions neutrally in the speaker's own terms; avoid loaded labels such as "extreme",
   "radical", "far-right" or "far-left" in verdict, summary and red_flags. Red flags must point to concrete
   factual errors or manipulation techniques, never to the political position itself.
+- Emphasis: in summary, key_points, red_flags, verdict, score_explanation and score_factors, wrap the
+  1-3 most important words or phrases of each sentence in single asterisks, like *this*. Use asterisks
+  only for emphasis, never for anything else, and never nest them.
 - Write ALL free-text fields (verdict, summary, key_points, red_flags, score_explanation, score_factors) in ${language},
   regardless of the language spoken in the video.`;
 }

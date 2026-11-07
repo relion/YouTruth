@@ -39,6 +39,15 @@ function el(tag, attrs = {}, ...children) {
   return node;
 }
 
+// AI text marks emphasis with *asterisks* (or **double**). Turn it into text nodes and <strong>
+// elements – never innerHTML, since the text comes from an AI. Unpaired asterisks are dropped.
+function emphasize(text) {
+  const parts = String(text ?? '').split(/\*{1,2}(?=\S)([^*\n]*?\S)\*{1,2}/g);
+  // split() with one capture group alternates: plain, emphasized, plain, emphasized, ...
+  return parts.map((p, i) => (i % 2 ? el('strong', {}, p) : p.replace(/\*/g, '')));
+}
+const plain = (text) => String(text ?? '').replace(/\*/g, ''); // for attributes (tooltips)
+
 function show(...nodes) {
   // Skip falsy entries from `cond && el(...)`; replaceChildren would print them as "false".
   view.replaceChildren(...nodes.filter(Boolean));
@@ -178,7 +187,7 @@ function renderResult({ videoId, meta, result, partial, ts }) {
   loadStats(statsBox, meta.stats);
 
   const list = (items, cls) =>
-    el('ul', { class: cls || '' }, (items || []).map((x) => el('li', {}, x)));
+    el('ul', { class: cls || '' }, (items || []).map((x) => el('li', {}, emphasize(x))));
 
   // Video titles may be in another script than the UI; let the browser pick their direction.
   // When the title was translated, clicking it toggles between the translation and the original.
@@ -237,7 +246,7 @@ function renderResult({ videoId, meta, result, partial, ts }) {
         class: 'score-box',
         role: 'button',
         tabindex: '0',
-        title: result.score_explanation || t('scoreHowHover'),
+        title: plain(result.score_explanation) || t('scoreHowHover'),
         onclick: toggleHow,
         onkeydown: (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), toggleHow())
       },
@@ -246,7 +255,7 @@ function renderResult({ videoId, meta, result, partial, ts }) {
       ),
       el('div', {},
         el('span', { class: 'chip', style: `--c:${catColor}` }, t(`cat_${result.category}`)),
-        el('p', { class: 'verdict' }, result.verdict)
+        el('p', { class: 'verdict' }, emphasize(result.verdict))
       )
     ),
 
@@ -255,7 +264,7 @@ function renderResult({ videoId, meta, result, partial, ts }) {
     statsBox,
 
     partial && el('div', { class: 'notice' }, t('partial')),
-    el('section', {}, el('h2', {}, t('summary')), el('p', {}, result.summary)),
+    el('section', {}, el('h2', {}, t('summary')), el('p', {}, emphasize(result.summary))),
 
     showDetails && result.key_points?.length > 0 &&
       el('section', {}, el('h2', {}, t('keyPoints')), list(result.key_points)),
@@ -277,9 +286,9 @@ function renderHow(result) {
     el('summary', {}, t('scoreHow')),
     hasInfo
       ? [
-          result.score_explanation && el('p', {}, result.score_explanation),
+          result.score_explanation && el('p', {}, emphasize(result.score_explanation)),
           factors.length > 0 && el('ul', { class: 'factors' }, factors.map((f) =>
-            el('li', { class: f.effect === 'negative' ? 'neg' : 'pos' }, f.text)))
+            el('li', { class: f.effect === 'negative' ? 'neg' : 'pos' }, emphasize(f.text))))
         ]
       : el('p', { class: 'muted' }, t('scoreHowOld'))
   );
