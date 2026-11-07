@@ -541,6 +541,14 @@ async function decideAnalysis(tabId, url, videoId) {
   if (latestUrl.get(tabId) !== url) return;
   if (cached) return setBadge(tabId, 'done', cached.result.credibility_score);
 
+  // Already being analyzed (e.g. the viewer scrolled away and came back): no waiting needed, just
+  // show the progress again. analyze() joins the running request, so nothing is sent twice.
+  if (inflight.has(cacheKey(videoId, language))) {
+    log(`tab ${tabId}: analysis already running, joining it`);
+    analyzeForTab(tabId, videoId, language).catch(() => {});
+    return;
+  }
+
   if (!apiKey) return log(`tab ${tabId}: no API key`); // icon stays plain; the popup guides to settings
   if (!autoAnalyze) { log(`tab ${tabId}: auto-analyze is off`); return setBadge(tabId, 'manual'); }
 
