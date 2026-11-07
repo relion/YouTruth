@@ -16,6 +16,11 @@ const DEFAULTS = { apiKey: '', model: 'gemini-2.5-flash', autoAnalyze: true, sho
 const STRINGS = {
   he: {
     close: 'סגור',
+    copy: 'העתק',
+    copied: 'הועתק ✓',
+    shareTitle: 'ניתוח הסרטון',
+    shareCategory: 'נושא/קטגוריה',
+    shareScore: 'מדד אמינות',
     reanalyze: '↻ נתח מחדש',
     disclaimer: 'ניתוח אוטומטי של AI – עלול לטעות',
     loading: 'Gemini צופה בסרטון ומנתח אותו…',
@@ -92,6 +97,11 @@ const STRINGS = {
 
   ro: {
     close: 'Închide',
+    copy: 'Copiază',
+    copied: 'Copiat ✓',
+    shareTitle: 'Analiza videoclipului',
+    shareCategory: 'Subiect/categorie',
+    shareScore: 'Scor de credibilitate',
     reanalyze: '↻ Analizează din nou',
     disclaimer: 'Analiză automată AI – poate greși',
     loading: 'Gemini vizionează și analizează videoclipul…',
@@ -168,6 +178,11 @@ const STRINGS = {
 
   en: {
     close: 'Close',
+    copy: 'Copy',
+    copied: 'Copied ✓',
+    shareTitle: 'Video analysis',
+    shareCategory: 'Topic/category',
+    shareScore: 'Credibility score',
     reanalyze: '↻ Re-analyze',
     disclaimer: 'Automated AI analysis – may be wrong',
     loading: 'Gemini is watching and analyzing the video…',

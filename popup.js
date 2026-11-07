@@ -16,8 +16,20 @@ const langSelect = document.getElementById('lang');
 let currentTab = null;
 let showDetails = DEFAULTS.showDetails; // "Show Details" setting: key points are listed only when on
 
+const copyBtn = document.getElementById('copy');
+let shareText = ''; // WhatsApp-formatted summary of the result on screen
+
 document.getElementById('close').addEventListener('click', () => window.close());
 refreshBtn.addEventListener('click', () => run(true));
+copyBtn.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(shareText);
+    copyBtn.textContent = t('copied');
+    setTimeout(() => { copyBtn.textContent = t('copy'); }, 1500);
+  } catch (e) {
+    console.warn('YouTruth: copy failed', e);
+  }
+});
 langSelect.addEventListener('change', async () => {
   setLang(langSelect.value);
   applyI18n();
@@ -62,6 +74,7 @@ function showMessage(text, { error = false, action } = {}) {
 
 function showLoading() {
   refreshBtn.hidden = true;
+  copyBtn.hidden = true;
   show(el('div', { class: 'center' },
     el('div', { class: 'spinner' }),
     el('p', {}, t('loading')),
@@ -276,6 +289,25 @@ function renderResult({ videoId, meta, result, partial, ts }) {
       t('analyzedAt', new Date(ts).toLocaleString(LANGS[currentLang].locale, { dateStyle: 'short', timeStyle: 'short' })))
   );
   refreshBtn.hidden = false;
+  shareText = buildShareText(videoId, meta, result);
+  copyBtn.hidden = false;
+}
+
+// WhatsApp formatting: *bold*. The AI's own *emphasis* is kept (and **double** becomes single).
+function buildShareText(videoId, meta, result) {
+  const title = (result.title_translated || meta.title || '').replace(/\*/g, '').trim();
+  const url = isShortsUrl(currentTab?.url || '')
+    ? `https://www.youtube.com/shorts/${videoId}`
+    : `https://www.youtube.com/watch?v=${videoId}`;
+  const summary = String(result.summary ?? '').replace(/\*{2,}/g, '*').trim();
+  return [
+    `*${t('shareTitle')}:* ${title}`,
+    `*${t('shareCategory')}:* ${t(`cat_${result.category}`)}`,
+    `*${t('shareScore')}:* ${result.credibility_score}/100`,
+    `*${t('summary')}:* ${summary}`,
+    '',
+    url
+  ].join('\n');
 }
 
 // Collapsible "how was the score determined?" panel under the verdict row.

@@ -88,7 +88,7 @@ footer {
   border-radius: 6px;
   padding: 2px 4px;
 }
-.close-btn {
+.hdr-btn {
   font: inherit;
   font-size: 12px;
   font-weight: 600;
@@ -99,7 +99,8 @@ footer {
   padding: 3px 10px;
   cursor: pointer;
 }
-.close-btn:hover { opacity: .75; }
+.hdr-btn:hover { opacity: .75; }
+.hdr-btn[hidden] { display: none; }
 .link-btn { color: var(--blue); font-size: 12px; padding: 0; }
 .link-btn:hover { opacity: .75; }
 
