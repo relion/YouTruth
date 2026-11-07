@@ -115,13 +115,16 @@ function paintStats(box, stats, reason = '') {
 
   const locale = LANGS[currentLang].locale;
   const num = (n) => new Intl.NumberFormat(locale).format(n);
-  const line = (label, value) => el('div', { class: 'pop-line' }, el('b', {}, `${label}: `), value);
+  const line = (label, ...value) => el('div', { class: 'pop-line' }, el('b', {}, `${label}: `), ...value);
 
   const lines = [];
   const published = stats.publishDate ? new Date(stats.publishDate) : null;
   if (published && !isNaN(published)) {
+    // Relative time first ("8 months ago"), the exact date after it in small, faded text.
     lines.push(line(t('statPublished'),
-      `${published.toLocaleDateString(locale, { dateStyle: 'medium' })} (${relativeTime(published)})`));
+      relativeTime(published),
+      ' ',
+      el('span', { class: 'pop-date' }, `(${published.toLocaleDateString(locale, { dateStyle: 'medium' })})`)));
   }
   if (stats.views != null) lines.push(line(t('statViews'), num(stats.views)));
   if (stats.likes != null) lines.push(line(t('statLikes'), num(stats.likes)));
