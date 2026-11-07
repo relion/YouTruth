@@ -223,6 +223,12 @@ function renderResult({ videoId, meta, result, partial, ts }) {
             : meta.channel))
     ),
 
+    result.ai_generated_suspected && el('div', { class: 'ai-banner', role: 'alert' },
+      el('span', { class: 'ai-icon', 'aria-hidden': 'true' }, '🤖'),
+      el('div', {},
+        el('div', { class: 'ai-title' }, t('aiSuspectedTitle')),
+        el('div', { class: 'ai-text' }, t('aiSuspected')))),
+
     el('div', { class: 'verdict-row', style: `--c:${catColor}` },
       el('div', {
         class: 'score-box',
@@ -246,8 +252,6 @@ function renderResult({ videoId, meta, result, partial, ts }) {
     statsBox,
 
     partial && el('div', { class: 'notice' }, t('partial')),
-    result.ai_generated_suspected && el('div', { class: 'notice' }, t('aiSuspected')),
-
     el('section', {}, el('h2', {}, t('summary')), el('p', {}, result.summary)),
 
     showDetails && result.key_points?.length > 0 &&
