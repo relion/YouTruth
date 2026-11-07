@@ -6,6 +6,7 @@ importScripts('shared.js'); // LANGS, DEFAULTS
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const CACHE_MAX = 60;
+const SHORT_VIDEO_SECONDS = 180; // clips up to this length are analyzed at higher visual detail
 
 const CATEGORIES = [
   'verified_news',     // חדשות מוסמכות
@@ -79,11 +80,10 @@ async function putCached(key, entry) {
 
 // The popup translates `code`; `detail` is an untranslated parameter (model name, API message…).
 class AppError extends Error {
-  constructor(code, detail = '', status) {
+  constructor(code, detail = '') {
     super(`${code}${detail ? `: ${detail}` : ''}`);
     this.code = code;
     this.detail = detail;
-    this.status = status;
   }
 }
 
@@ -218,15 +218,6 @@ function setBadge(tabId, state, score) {
   applyState(tabId);
 }
 
-chrome.tabs.onRemoved.addListener((tabId) => {
-  stopIconAnim(tabId);
-  tabState.delete(tabId);
-});
-
-chrome.tabs.onActivated.addListener(({ tabId }) => {
-  if (tabState.has(tabId)) applyState(tabId);
-});
-
 // ---------- Gemini ----------
 
 function buildPrompt(meta, withVideo, lang) {
@@ -257,7 +248,17 @@ Tasks:
    each marked positive if it raised the score or negative if it lowered it, e.g. "cites official data on screen",
    "claim X contradicts published records"). Factors must follow the neutrality rules below.
 3. List concrete red_flags (empty array if none) and key_points (3-6 items).
-4. Set ai_generated_suspected=true only if there are visible/audible signs of synthetic media.
+4. Set ai_generated_suspected=true if the video is LIKELY fully or partly AI-generated or AI-edited
+   (you do not need certainty; judge by the balance of evidence). Look closely at the footage for:
+   - overly smooth, glossy, "too perfect" or dreamlike look; plastic-looking skin; unnatural lighting;
+   - motion/physics glitches: morphing or melting shapes, objects or limbs that change between frames,
+     impossible movement, water/fabric/hair behaving oddly, inconsistent shadows and reflections;
+   - distorted hands, fingers, teeth, eyes, faces; text, signs or logos that are garbled or change;
+   - very short clips (a few seconds) stitched together, repetitive looping motion, generic stock-like scenes;
+   - synthetic or mismatched voice, lip-sync that is slightly off, generic AI music or narration;
+   - a channel that posts many similar clips, or a topic/scene that looks implausible as real filming.
+   Set it to false only when the footage looks like ordinary real filming and none of these signs appear.
+   If you set it to true, add a short red_flag naming the concrete signs you saw.
 5. Write a summary of what the video says/shows.
 6. Provide title_translated: the video title translated into ${language}. If the title is already in ${language},
    return it unchanged. Keep proper names (people, places, brands, channel names) as they are commonly written.
@@ -282,14 +283,18 @@ Rules:
   regardless of the language spoken in the video.`;
 }
 
-async function callGemini({ apiKey, model }, parts, withVideo) {
+async function callGemini({ apiKey, model }, parts, withVideo, lengthSeconds) {
   const generationConfig = {
     temperature: 0.2,
     responseMimeType: 'application/json',
     responseSchema: RESPONSE_SCHEMA
   };
-  // Low media resolution keeps token usage (and cost) of long videos down.
-  if (withVideo) generationConfig.mediaResolution = 'MEDIA_RESOLUTION_LOW';
+  // Low media resolution keeps token usage (and cost) of long videos down, but it blurs the fine
+  // details that give AI-generated footage away. Short clips (Shorts etc.) are cheap, so use more detail.
+  if (withVideo) {
+    const short = lengthSeconds > 0 && lengthSeconds <= SHORT_VIDEO_SECONDS;
+    generationConfig.mediaResolution = short ? 'MEDIA_RESOLUTION_MEDIUM' : 'MEDIA_RESOLUTION_LOW';
+  }
 
   let res;
   try {
@@ -305,10 +310,10 @@ async function callGemini({ apiKey, model }, parts, withVideo) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg = data?.error?.message || `HTTP ${res.status}`;
-    if (res.status === 429) throw new AppError('QUOTA', '', 429);
-    if (/API key/i.test(msg) || res.status === 401) throw new AppError('BAD_KEY', '', res.status);
-    if (res.status === 404 && /models\//.test(msg)) throw new AppError('BAD_MODEL', model, 404);
-    throw new AppError('API', msg, res.status);
+    if (res.status === 429) throw new AppError('QUOTA');
+    if (/API key/i.test(msg) || res.status === 401) throw new AppError('BAD_KEY');
+    if (res.status === 404 && /models\//.test(msg)) throw new AppError('BAD_MODEL', model);
+    throw new AppError('API', msg);
   }
 
   const cand = data?.candidates?.[0];
@@ -333,7 +338,7 @@ async function fetchMeta(videoId) {
     const r = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(url)}`);
     if (r.ok) {
       const j = await r.json();
-      return { url, title: j.title, channel: j.author_name, thumbnail: j.thumbnail_url };
+      return { url, title: j.title, channel: j.author_name };
     }
   } catch {}
   return { url };
@@ -434,7 +439,7 @@ async function runAnalysis(videoId, lang, tabId) {
     result = await callGemini(settings, [
       { fileData: { fileUri: meta.url } },
       { text: buildPrompt(meta, true, lang) }
-    ], true);
+    ], true, stats?.lengthSeconds);
   } catch (e) {
     // Key / quota / model problems won't be fixed by retrying without the video.
     if (['NO_KEY', 'BAD_KEY', 'QUOTA', 'BAD_MODEL', 'NETWORK'].includes(e.code)) throw e;
@@ -498,6 +503,8 @@ function cancelPending(tabId) {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   cancelPending(tabId);
+  stopIconAnim(tabId);
+  tabState.delete(tabId);
   latestUrl.delete(tabId);
   tabVideo.delete(tabId);
 });
@@ -571,9 +578,12 @@ async function decideAnalysis(tabId, url, videoId) {
   pendingShorts.set(tabId, { videoId, timer });
 }
 
-// Switching to a tab whose Short was skipped because the tab was hidden: decide again now.
+// Switching tabs: repaint that tab's icon, and if its Short was skipped because the tab was hidden,
+// decide again now.
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
-  if (tabState.get(tabId)?.state !== 'manual') return;
+  if (!tabState.has(tabId)) return;
+  applyState(tabId);
+  if (tabState.get(tabId).state !== 'manual') return;
   const tab = await chrome.tabs.get(tabId).catch(() => null);
   const videoId = getVideoId(tab?.url || '');
   if (!videoId || !isShortsUrl(tab.url) || pendingShorts.has(tabId)) return;

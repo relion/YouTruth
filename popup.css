@@ -72,14 +72,13 @@ footer {
   color: var(--muted);
 }
 
-.icon-btn, .link-btn {
+.link-btn {
   background: none;
   border: 0;
   color: inherit;
   cursor: pointer;
   font: inherit;
 }
-.icon-btn { font-size: 18px; color: var(--muted); }
 #lang {
   font: inherit;
   font-size: 12px;
@@ -102,7 +101,7 @@ footer {
 }
 .close-btn:hover { opacity: .75; }
 .link-btn { color: var(--blue); font-size: 12px; padding: 0; }
-.icon-btn:hover, .link-btn:hover { opacity: .75; }
+.link-btn:hover { opacity: .75; }
 
 .btn {
   display: inline-block;

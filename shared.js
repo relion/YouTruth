@@ -15,7 +15,6 @@ const DEFAULTS = { apiKey: '', model: 'gemini-2.5-flash', autoAnalyze: true, sho
 
 const STRINGS = {
   he: {
-    settings: 'הגדרות',
     close: 'סגור',
     reanalyze: '↻ נתח מחדש',
     disclaimer: 'ניתוח אוטומטי של AI – עלול לטעות',
@@ -92,7 +91,6 @@ const STRINGS = {
   },
 
   ro: {
-    settings: 'Setări',
     close: 'Închide',
     reanalyze: '↻ Analizează din nou',
     disclaimer: 'Analiză automată AI – poate greși',
@@ -169,7 +167,6 @@ const STRINGS = {
   },
 
   en: {
-    settings: 'Settings',
     close: 'Close',
     reanalyze: '↻ Re-analyze',
     disclaimer: 'Automated AI analysis – may be wrong',
@@ -265,10 +262,6 @@ function t(key, ...args) {
 function applyI18n(root = document) {
   root.querySelectorAll('[data-i18n]').forEach((n) => { n.textContent = t(n.dataset.i18n); });
   root.querySelectorAll('[data-i18n-html]').forEach((n) => { n.innerHTML = t(n.dataset.i18nHtml); });
-  root.querySelectorAll('[data-i18n-title]').forEach((n) => {
-    n.title = t(n.dataset.i18nTitle);
-    n.setAttribute('aria-label', n.title);
-  });
 }
 
 function fillLangSelect(select) {
