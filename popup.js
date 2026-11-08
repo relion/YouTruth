@@ -300,11 +300,17 @@ function buildShareText(videoId, meta, result) {
     ? `https://www.youtube.com/shorts/${videoId}`
     : `https://www.youtube.com/watch?v=${videoId}`;
   const summary = String(result.summary ?? '').replace(/\*{2,}/g, '*').trim();
+  const bullets = (items) => items.map((s) => `• ${String(s).replace(/\*{2,}/g, '*').trim()}`);
+  const section = (label, items) =>
+    Array.isArray(items) && items.length > 0 ? ['', `*${label}:*`, ...bullets(items)] : [];
   return [
     `*${t('shareTitle')}:* ${title}`,
     `*${t('shareCategory')}:* ${t(`cat_${result.category}`)}`,
     `*${t('shareScore')}:* ${result.credibility_score}/100`,
     `*${t('summary')}:* ${summary}`,
+    // Same optional sections the popup shows, in the same order.
+    ...(showDetails ? section(t('keyPoints'), result.key_points) : []),
+    ...section(t('redFlags'), result.red_flags),
     '',
     url
   ].join('\n');
