@@ -322,6 +322,7 @@ function buildShareText(videoId, meta, result) {
     ...(showDetails ? section(t('keyPoints'), result.key_points) : []),
     ...section(t('redFlags'), result.red_flags),
     '',
+    `_${t('shareFooter')}_`, // WhatsApp italic
     url
   ].join('\n');
 }
