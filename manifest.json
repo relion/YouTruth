@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTruth",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "ניתוח אמינות ותקציר לסרטוני YouTube באמצעות Google Gemini",
   "permissions": ["storage", "declarativeContent", "scripting"],
   "host_permissions": [
