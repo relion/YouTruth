@@ -299,8 +299,18 @@ function buildShareText(videoId, meta, result) {
   const url = isShortsUrl(currentTab?.url || '')
     ? `https://www.youtube.com/shorts/${videoId}`
     : `https://www.youtube.com/watch?v=${videoId}`;
-  const summary = String(result.summary ?? '').replace(/\*{2,}/g, '*').trim();
-  const bullets = (items) => items.map((s) => `• ${String(s).replace(/\*{2,}/g, '*').trim()}`);
+  // WhatsApp only bolds when the asterisk isn't glued to a letter: "ו*שילוב*" -> "ו-*שילוב*".
+  const LETTER = /[\p{L}\p{N}]/u;
+  const clean = (text) => String(text ?? '')
+    .replace(/\*{2,}/g, '*')
+    .replace(/\*([^*\n]+)\*/g, (m, inner, offset, whole) => {
+      const before = whole[offset - 1];
+      const after = whole[offset + m.length];
+      return `${before && LETTER.test(before) ? '-' : ''}*${inner}*${after && LETTER.test(after) ? '-' : ''}`;
+    })
+    .trim();
+  const summary = clean(result.summary);
+  const bullets = (items) => items.map((s) => `• ${clean(s)}`);
   const section = (label, items) =>
     Array.isArray(items) && items.length > 0 ? ['', `*${label}:*`, ...bullets(items)] : [];
   return [
