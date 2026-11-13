@@ -9,6 +9,25 @@ function setStatus(text, cls = '') {
 $('cacheMax').min = CACHE_MIN;
 $('cacheMax').max = CACHE_LIMIT;
 
+// The model is either one of the listed choices or a free-text name; a typed name takes precedence
+// (and greys out the list) so it's always clear which one will be used.
+function fillModelSelect(current) {
+  $('model').replaceChildren(...MODEL_CHOICES.map((n) =>
+    Object.assign(document.createElement('option'), { value: n, textContent: n })));
+  const listed = MODEL_CHOICES.includes(current);
+  $('model').value = listed ? current : DEFAULTS.model;
+  $('modelCustom').value = listed ? '' : current;
+  syncModelInputs();
+}
+
+function syncModelInputs() {
+  $('model').disabled = $('modelCustom').value.trim() !== '';
+}
+
+const selectedModel = () => $('modelCustom').value.trim() || $('model').value || DEFAULTS.model;
+
+$('modelCustom').addEventListener('input', syncModelInputs);
+
 // Shows how many analyses are stored right now versus the saved limit.
 async function paintCacheInfo() {
   const { cache = {}, cacheMax } = await chrome.storage.local.get({ cache: {}, cacheMax: DEFAULTS.cacheMax });
@@ -29,7 +48,7 @@ async function load() {
   setLang(s.language);
   fillLangSelect($('language'));
   $('apiKey').value = s.apiKey;
-  $('model').value = s.model;
+  fillModelSelect(s.model);
   $('autoAnalyze').checked = s.autoAnalyze;
   $('showDetails').checked = s.showDetails;
   $('shortsDelay').value = s.shortsDelay;
@@ -64,7 +83,7 @@ $('save').addEventListener('click', async () => {
     cache: trimCache(cache, cacheMax), // lowering the limit drops the oldest extras at once
     language: currentLang,
     apiKey: $('apiKey').value.trim(),
-    model: $('model').value.trim() || DEFAULTS.model,
+    model: selectedModel(),
     autoAnalyze: $('autoAnalyze').checked,
     showDetails: $('showDetails').checked
   });
@@ -87,10 +106,8 @@ $('test').addEventListener('click', async () => {
     const names = (j.models || [])
       .filter((m) => m.supportedGenerationMethods?.includes('generateContent') && /gemini/.test(m.name))
       .map((m) => m.name.replace(/^models\//, ''));
-    const list = $('models');
-    list.replaceChildren(...names.map((n) => Object.assign(document.createElement('option'), { value: n })));
 
-    const model = $('model').value.trim() || DEFAULTS.model;
+    const model = selectedModel();
     const known = names.includes(model);
     setStatus(t(known ? 'keyOkModel' : 'keyOkNoModel', model), known ? 'ok' : 'err');
   } catch (e) {

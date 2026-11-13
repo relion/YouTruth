@@ -13,13 +13,16 @@
     h1 { display:flex; align-items:center; gap:10px; font-size:24px; }
     label { display:block; font-weight:600; margin:20px 0 6px; }
     .hint { color:var(--muted); font-size:13px; margin:4px 0 0; }
+    .model-info { margin:4px 0 0; padding-inline-start:20px; }
+    .model-info li { margin:4px 0; }
+    code { direction:ltr; unicode-bidi:isolate; font-weight:600; color:var(--fg); }
     .row { display:flex; gap:8px; }
     input[type=number] { padding:8px 10px; font:inherit; color:inherit; background:var(--bg); border:1px solid var(--border); border-radius:6px; }
     input[type=text], input[type=password], select {
       flex:1; width:100%; padding:8px 10px; font:inherit; color:inherit;
       background:var(--bg); border:1px solid var(--border); border-radius:6px;
     }
-    input[type=text], input[type=password] { direction:ltr; text-align:left; }
+    input[type=text], input[type=password], select#model { direction:ltr; text-align:left; }
     button {
       padding:8px 14px; font:inherit; border-radius:6px; cursor:pointer;
       border:1px solid var(--border); background:transparent; color:inherit;
@@ -49,13 +52,14 @@
     <p class="hint"><a href="https://aistudio.google.com/billing" target="_blank" rel="noopener" data-i18n="billing"></a></p>
 
     <label for="model" data-i18n="modelLabel"></label>
-    <input id="model" type="text" list="models" spellcheck="false">
-    <datalist id="models">
-      <option value="gemini-2.5-flash">
-      <option value="gemini-2.5-flash-lite">
-      <option value="gemini-2.5-pro">
-    </datalist>
+    <select id="model"></select>
+    <p class="hint" style="margin:10px 0 6px" data-i18n="modelCustomHint"></p>
+    <input id="modelCustom" type="text" spellcheck="false" autocomplete="off" placeholder="gemini-…">
     <p class="hint" data-i18n="modelHint"></p>
+    <ul class="hint model-info">
+      <li><code>gemini-3.5-flash-lite</code> – <span data-i18n="modelDescLite"></span></li>
+      <li><code>gemini-3.8-flash</code> – <span data-i18n="modelDescFlash"></span></li>
+    </ul>
 
     <label class="check"><input id="autoAnalyze" type="checkbox"> <span data-i18n="autoLabel"></span></label>
     <p class="hint" data-i18n="autoHint"></p>

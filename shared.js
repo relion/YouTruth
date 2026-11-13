@@ -11,7 +11,8 @@ function detectLang() {
   return l === 'iw' ? 'he' : LANGS[l] ? l : 'en';
 }
 
-const DEFAULTS = { apiKey: '', model: 'gemini-2.5-flash', autoAnalyze: true, shortsDelay: 4, showDetails: true, cacheMax: 60, language: detectLang() };
+const DEFAULTS = { apiKey: '', model: 'gemini-3.5-flash-lite', autoAnalyze: true, shortsDelay: 4, showDetails: true, cacheMax: 60, language: detectLang() };
+const MODEL_CHOICES = ['gemini-3.5-flash-lite', 'gemini-3.8-flash']; // models offered in the settings
 const CACHE_MIN = 10;
 const CACHE_LIMIT = 300; // upper bound for the "saved analyses" setting (keeps chrome.storage.local small)
 
@@ -89,7 +90,10 @@ const STRINGS = {
     hide: 'הסתר',
     apiKeyHint: 'צור מפתח ב-<a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener">Google AI Studio</a>. המפתח נשמר מקומית בדפדפן בלבד ונשלח רק לשרתי Google.',
     modelLabel: 'מודל',
-    modelHint: 'ברירת מחדל: gemini-2.5-flash. "בדוק מפתח" יציג את המודלים הזמינים לחשבון שלך.',
+    modelHint: 'ברירת מחדל: gemini-3.5-flash-lite. "בדוק מפתח" יבדוק שהמפתח תקין ושהמודל שנבחר זמין לחשבון שלך.',
+    modelCustomHint: 'או הקלד שם מודל אחר. אם השדה מלא, הוא גובר על הבחירה למעלה.',
+    modelDescLite: 'זול ומהיר, מתאים לשימוש יומיומי ולהרבה ניתוחים. מחיר בתשלום: $0.30 קלט / $2.50 פלט למיליון טוקנים.',
+    modelDescFlash: 'המודל החכם ביותר במשפחת Flash, אבל יקר יותר בערך פי 2.5. מחיר בתשלום: $0.75 קלט / $3.75 פלט למיליון טוקנים (עד סוף 2026; מ-2027: $1.50 / $7.50).',
     autoLabel: 'נתח אוטומטית כל סרטון שנפתח',
     autoHint: 'כשמופעל, הניתוח מתחיל ברגע שנכנסים לסרטון והציון מופיע על האייקון. כשכבוי, הניתוח מתבצע רק בלחיצה על האייקון (חוסך במכסת הבקשות).',
     shortsDelayLabel: 'השהיה לפני ניתוח Short (בשניות)',
@@ -174,7 +178,10 @@ const STRINGS = {
     hide: 'Ascunde',
     apiKeyHint: 'Creați o cheie în <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener">Google AI Studio</a>. Cheia este salvată doar local în browser și trimisă numai către serverele Google.',
     modelLabel: 'Model',
-    modelHint: 'Implicit: gemini-2.5-flash. „Verifică cheia” afișează modelele disponibile pentru contul dvs.',
+    modelHint: 'Implicit: gemini-3.5-flash-lite. „Verifică cheia” verifică dacă cheia este validă și dacă modelul ales este disponibil pentru contul dvs.',
+    modelCustomHint: 'Sau scrieți numele altui model. Dacă este completat, are prioritate față de alegerea de mai sus.',
+    modelDescLite: 'Ieftin și rapid, potrivit pentru folosirea zilnică și pentru multe analize. Preț cu plată: 0,30 USD intrare / 2,50 USD ieșire la un milion de tokeni.',
+    modelDescFlash: 'Cel mai inteligent model din familia Flash, dar de circa 2,5 ori mai scump. Preț cu plată: 0,75 USD intrare / 3,75 USD ieșire la un milion de tokeni (până la sfârșitul lui 2026; din 2027: 1,50 / 7,50 USD).',
     autoLabel: 'Analizează automat fiecare videoclip deschis',
     autoHint: 'Când este activat, analiza pornește imediat ce deschideți un videoclip, iar scorul apare pe pictogramă. Când este dezactivat, analiza rulează doar la clic pe pictogramă (economisește cota).',
     shortsDelayLabel: 'Așteptare înainte de analiza unui Short (secunde)',
@@ -259,7 +266,10 @@ const STRINGS = {
     hide: 'Hide',
     apiKeyHint: 'Create a key at <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener">Google AI Studio</a>. The key is stored locally in your browser and sent only to Google\'s servers.',
     modelLabel: 'Model',
-    modelHint: 'Default: gemini-2.5-flash. "Check key" lists the models available to your account.',
+    modelHint: 'Default: gemini-3.5-flash-lite. "Check key" verifies that the key is valid and the selected model is available to your account.',
+    modelCustomHint: 'Or type another model name. If filled in, it overrides the choice above.',
+    modelDescLite: 'Cheap and fast, suited to everyday use and many analyses. Paid price: $0.30 input / $2.50 output per million tokens.',
+    modelDescFlash: 'The smartest Flash model, but about 2.5x more expensive. Paid price: $0.75 input / $3.75 output per million tokens (through 2026; from 2027: $1.50 / $7.50).',
     autoLabel: 'Automatically analyze every video I open',
     autoHint: 'When on, analysis starts as soon as you open a video and the score appears on the icon. When off, analysis runs only when you click the icon (saves quota).',
     shortsDelayLabel: 'Delay before analyzing a Short (seconds)',
