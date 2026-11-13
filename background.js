@@ -2,10 +2,9 @@
 // Watches YouTube navigation, asks Gemini to classify + summarize the video,
 // caches the result per video ID + language and serves it to the popup.
 
-importScripts('shared.js'); // LANGS, DEFAULTS
+importScripts('shared.js'); // LANGS, DEFAULTS, trimCache
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const CACHE_MAX = 60;
 const SHORT_VIDEO_SECONDS = 180; // clips up to this length are analyzed at higher visual detail
 
 const CATEGORIES = [
@@ -67,15 +66,9 @@ async function getCached(key) {
 }
 
 async function putCached(key, entry) {
-  const { cache = {} } = await chrome.storage.local.get('cache');
+  const { cache = {}, cacheMax } = await chrome.storage.local.get({ cache: {}, cacheMax: DEFAULTS.cacheMax });
   cache[key] = entry;
-  const ids = Object.keys(cache);
-  if (ids.length > CACHE_MAX) {
-    ids.sort((a, b) => cache[a].ts - cache[b].ts)
-      .slice(0, ids.length - CACHE_MAX)
-      .forEach((id) => delete cache[id]);
-  }
-  await chrome.storage.local.set({ cache });
+  await chrome.storage.local.set({ cache: trimCache(cache, cacheMax) });
 }
 
 // The popup translates `code`; `detail` is an untranslated parameter (model name, API message…).

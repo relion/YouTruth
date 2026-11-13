@@ -11,7 +11,20 @@ function detectLang() {
   return l === 'iw' ? 'he' : LANGS[l] ? l : 'en';
 }
 
-const DEFAULTS = { apiKey: '', model: 'gemini-2.5-flash', autoAnalyze: true, shortsDelay: 4, showDetails: true, language: detectLang() };
+const DEFAULTS = { apiKey: '', model: 'gemini-2.5-flash', autoAnalyze: true, shortsDelay: 4, showDetails: true, cacheMax: 60, language: detectLang() };
+const CACHE_MIN = 10;
+const CACHE_LIMIT = 300; // upper bound for the "saved analyses" setting (keeps chrome.storage.local small)
+
+// Keeps only the newest `max` entries of the analysis cache (mutates and returns it).
+function trimCache(cache, max) {
+  const ids = Object.keys(cache);
+  if (ids.length > max) {
+    ids.sort((a, b) => cache[a].ts - cache[b].ts)
+      .slice(0, ids.length - max)
+      .forEach((id) => delete cache[id]);
+  }
+  return cache;
+}
 
 const STRINGS = {
   he: {
@@ -93,7 +106,10 @@ const STRINGS = {
     keyOkModel: 'המפתח תקין ✓ (המודל {0} זמין)',
     keyOkNoModel: 'המפתח תקין, אך המודל "{0}" לא נמצא ברשימה',
     errorPrefix: 'שגיאה: {0}',
-    cacheCleared: 'התוצאות השמורות נמחקו'
+    cacheCleared: 'התוצאות השמורות נמחקו',
+    cacheMaxLabel: 'מספר ניתוחים לשמירה',
+    cacheMaxHint: 'כך נחסכות בקשות כשחוזרים לסרטון שכבר נותח. כשמגיעים למספר הזה, הניתוחים הישנים ביותר נמחקים. אפשר בין {0} ל-{1}. הקטנת המספר מוחקת מיד את העודף.',
+    cacheInfo: 'ניתוחים שמורים כעת: {0} מתוך {1}'
   },
 
   ro: {
@@ -175,7 +191,10 @@ const STRINGS = {
     keyOkModel: 'Cheia este validă ✓ (modelul {0} este disponibil)',
     keyOkNoModel: 'Cheia este validă, dar modelul „{0}” nu apare în listă',
     errorPrefix: 'Eroare: {0}',
-    cacheCleared: 'Rezultatele salvate au fost șterse'
+    cacheCleared: 'Rezultatele salvate au fost șterse',
+    cacheMaxLabel: 'Câte analize se păstrează',
+    cacheMaxHint: 'Așa se economisesc cereri când reveniți la un videoclip deja analizat. Când se atinge acest număr, cele mai vechi analize se șterg. Puteți alege între {0} și {1}. Dacă micșorați numărul, surplusul se șterge imediat.',
+    cacheInfo: 'Analize salvate acum: {0} din {1}'
   },
 
   en: {
@@ -257,7 +276,10 @@ const STRINGS = {
     keyOkModel: 'Key is valid ✓ (model {0} is available)',
     keyOkNoModel: 'Key is valid, but model "{0}" is not in the list',
     errorPrefix: 'Error: {0}',
-    cacheCleared: 'Saved results cleared'
+    cacheCleared: 'Saved results cleared',
+    cacheMaxLabel: 'Number of analyses to keep',
+    cacheMaxHint: 'This saves requests when you return to a video that was already analyzed. When this number is reached, the oldest analyses are removed. Allowed range: {0} to {1}. Lowering it removes the extra ones right away.',
+    cacheInfo: 'Currently saved analyses: {0} of {1}'
   }
 };
 

@@ -6,11 +6,22 @@ function setStatus(text, cls = '') {
   status.className = cls;
 }
 
+$('cacheMax').min = CACHE_MIN;
+$('cacheMax').max = CACHE_LIMIT;
+
+// Shows how many analyses are stored right now versus the saved limit.
+async function paintCacheInfo() {
+  const { cache = {}, cacheMax } = await chrome.storage.local.get({ cache: {}, cacheMax: DEFAULTS.cacheMax });
+  $('cacheInfo').textContent = t('cacheInfo', Object.keys(cache).length, cacheMax);
+}
+
 function refreshTexts() {
   applyI18n();
   document.title = t('optTitle');
   $('toggleKey').textContent = t($('apiKey').type === 'password' ? 'show' : 'hide');
   setStatus('');
+  $('cacheMaxHint').textContent = t('cacheMaxHint', CACHE_MIN, CACHE_LIMIT);
+  paintCacheInfo();
 }
 
 async function load() {
@@ -22,6 +33,7 @@ async function load() {
   $('autoAnalyze').checked = s.autoAnalyze;
   $('showDetails').checked = s.showDetails;
   $('shortsDelay').value = s.shortsDelay;
+  $('cacheMax').value = s.cacheMax;
   refreshTexts();
 }
 
@@ -41,9 +53,15 @@ $('save').addEventListener('click', async () => {
   const delay = parseInt($('shortsDelay').value, 10);
   const shortsDelay = Number.isFinite(delay) ? Math.max(0, Math.min(60, delay)) : DEFAULTS.shortsDelay;
   $('shortsDelay').value = shortsDelay;
+  const max = parseInt($('cacheMax').value, 10);
+  const cacheMax = Number.isFinite(max) ? Math.max(CACHE_MIN, Math.min(CACHE_LIMIT, max)) : DEFAULTS.cacheMax;
+  $('cacheMax').value = cacheMax;
+  const { cache = {} } = await chrome.storage.local.get('cache');
   await chrome.storage.local.remove('autoShorts'); // old setting, no longer used
   await chrome.storage.local.set({
     shortsDelay,
+    cacheMax,
+    cache: trimCache(cache, cacheMax), // lowering the limit drops the oldest extras at once
     language: currentLang,
     apiKey: $('apiKey').value.trim(),
     model: $('model').value.trim() || DEFAULTS.model,
@@ -51,6 +69,7 @@ $('save').addEventListener('click', async () => {
     showDetails: $('showDetails').checked
   });
   setStatus(t('saved'), 'ok');
+  paintCacheInfo();
 });
 
 // Listing models doesn't consume generation quota, so it's a free way to validate the key.
@@ -82,6 +101,7 @@ $('test').addEventListener('click', async () => {
 $('clearCache').addEventListener('click', async () => {
   await chrome.storage.local.remove('cache');
   setStatus(t('cacheCleared'), 'ok');
+  paintCacheInfo();
 });
 
 load();
