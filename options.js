@@ -39,7 +39,7 @@ async function paintCacheInfo() {
   $('cacheInfo').textContent = t('cacheInfo', Object.keys(cache).length, cacheMax);
 }
 
-// Cumulative token usage recorded by the service worker: this month + everything since tracking began.
+// Cumulative token usage recorded by the service worker (everything since tracking began).
 // tokenUsage = { since, months: { '2026-11': { '<model>': { calls, input, output, cost } } } }; cost is the
 // USD estimate computed at call time with the paid-tier price in effect then.
 async function paintUsage() {
@@ -47,8 +47,7 @@ async function paintUsage() {
   const buckets = (months) => months.flatMap((m) => Object.values(m || {}));
   const all = buckets(Object.values(tokenUsage?.months || {}));
   if (all.length === 0) {
-    $('usageMonth').textContent = t('usageNone');
-    $('usageTotal').textContent = '';
+    $('usageTotal').textContent = t('usageNone');
     $('resetUsage').hidden = true;
     return;
   }
@@ -58,9 +57,7 @@ async function paintUsage() {
   const sum = (list) => list.reduce((a, b) => ({
     calls: a.calls + b.calls, input: a.input + b.input, output: a.output + b.output, cost: a.cost + (b.cost || 0)
   }), { calls: 0, input: 0, output: 0, cost: 0 });
-  const month = sum(buckets([tokenUsage.months[monthKey()]]));
   const total = sum(all);
-  $('usageMonth').textContent = t('usageMonth', num(month.calls), num(month.input), num(month.output), usd(month.cost));
   $('usageTotal').textContent = t('usageTotal', new Date(tokenUsage.since).toLocaleDateString(locale),
     num(total.calls), num(total.input), num(total.output), usd(total.cost));
   $('resetUsage').hidden = false;
