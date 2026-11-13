@@ -12,7 +12,27 @@ function detectLang() {
 }
 
 const DEFAULTS = { apiKey: '', model: 'gemini-3.5-flash-lite', autoAnalyze: true, shortsDelay: 4, showDetails: true, cacheMax: 60, language: detectLang() };
-const MODEL_CHOICES = ['gemini-3.5-flash-lite', 'gemini-3.8-flash']; // models offered in the settings
+// Models offered in the settings, with their paid-tier price in USD per 1M tokens (output includes thinking
+// tokens). Each model has price tiers by start date, so a scheduled price change is encoded here once.
+// Source: https://aistudio.google.com/docs/pricing (checked Nov 2026) – update when Google changes prices.
+const MODEL_PRICES = {
+  'gemini-3.5-flash-lite': [{ from: '2000-01-01', input: 0.30, output: 2.50 }],
+  'gemini-3.8-flash': [
+    { from: '2000-01-01', input: 0.75, output: 3.75 },
+    { from: '2027-01-01', input: 1.50, output: 7.50 }
+  ]
+};
+const MODEL_CHOICES = Object.keys(MODEL_PRICES);
+
+// A saved model that is no longer offered (e.g. an older default or a hand-typed name) falls back to the default.
+const normalizeModel = (m) => (MODEL_CHOICES.includes(m) ? m : DEFAULTS.model);
+
+// Price tier in effect on `date`, or null for an unknown model.
+function priceFor(model, date = new Date()) {
+  const day = date.toISOString().slice(0, 10);
+  const tiers = MODEL_PRICES[model];
+  return tiers ? tiers.filter((p) => p.from <= day).pop() : null;
+}
 const CACHE_MIN = 10;
 const CACHE_LIMIT = 300; // upper bound for the "saved analyses" setting (keeps chrome.storage.local small)
 
@@ -26,6 +46,9 @@ function trimCache(cache, max) {
   }
   return cache;
 }
+
+// Token-usage buckets are kept per calendar month ("2026-11") in chrome.storage.local → usage.months.
+const monthKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
 const STRINGS = {
   he: {
@@ -91,9 +114,19 @@ const STRINGS = {
     apiKeyHint: 'צור מפתח ב-<a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener">Google AI Studio</a>. המפתח נשמר מקומית בדפדפן בלבד ונשלח רק לשרתי Google.',
     modelLabel: 'מודל',
     modelHint: 'ברירת מחדל: gemini-3.5-flash-lite. "בדוק מפתח" יבדוק שהמפתח תקין ושהמודל שנבחר זמין לחשבון שלך.',
-    modelCustomHint: 'או הקלד שם מודל אחר. אם השדה מלא, הוא גובר על הבחירה למעלה.',
-    modelDescLite: 'זול ומהיר, מתאים לשימוש יומיומי ולהרבה ניתוחים. מחיר בתשלום: $0.30 קלט / $2.50 פלט למיליון טוקנים.',
-    modelDescFlash: 'המודל החכם ביותר במשפחת Flash, אבל יקר יותר בערך פי 2.5. מחיר בתשלום: $0.75 קלט / $3.75 פלט למיליון טוקנים (עד סוף 2026; מ-2027: $1.50 / $7.50).',
+    usageLabel: 'שימוש בטוקנים (במכשיר הזה)',
+    usageHint: 'סופר את הבקשות שהתוסף שלח ל-Gemini, את הטוקנים שלהן ועלות משוערת לפי התעריף בתשלום של המודל (בשכבה החינמית אין חיוב בפועל). הנתונים נשמרים רק במכשיר הזה והם הערכה לפי מה ש-Gemini מחזיר. החיוב בפועל מופיע ב-AI Studio.',
+    usageMonth: 'החודש: {0} בקשות · קלט {1} · פלט {2} טוקנים · עלות משוערת {3}',
+    usageTotal: 'סה"כ מאז {0}: {1} בקשות · קלט {2} · פלט {3} טוקנים · עלות משוערת {4}',
+    usageNone: 'עדיין אין נתונים. הם יופיעו אחרי הניתוח הראשון.',
+    usageReset: 'אפס מונה',
+    usageResetConfirm: 'לאפס את מונה הטוקנים?',
+    usageResetDone: 'המונה אופס',
+    pricingLink: 'מחירון Gemini API ↗',
+    modelDescLite: 'זול ומהיר, מתאים לשימוש יומיומי ולהרבה ניתוחים.',
+    modelDescFlash: 'המודל החכם ביותר במשפחת Flash, אבל יקר יותר.',
+    modelPrice: 'מחיר בתשלום: ${0} קלט / ${1} פלט למיליון טוקנים.',
+    modelPriceFrom: 'מ-{0}: ${1} / ${2}.',
     autoLabel: 'נתח אוטומטית כל סרטון שנפתח',
     autoHint: 'כשמופעל, הניתוח מתחיל ברגע שנכנסים לסרטון והציון מופיע על האייקון. כשכבוי, הניתוח מתבצע רק בלחיצה על האייקון (חוסך במכסת הבקשות).',
     shortsDelayLabel: 'השהיה לפני ניתוח Short (בשניות)',
@@ -179,9 +212,19 @@ const STRINGS = {
     apiKeyHint: 'Creați o cheie în <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener">Google AI Studio</a>. Cheia este salvată doar local în browser și trimisă numai către serverele Google.',
     modelLabel: 'Model',
     modelHint: 'Implicit: gemini-3.5-flash-lite. „Verifică cheia” verifică dacă cheia este validă și dacă modelul ales este disponibil pentru contul dvs.',
-    modelCustomHint: 'Sau scrieți numele altui model. Dacă este completat, are prioritate față de alegerea de mai sus.',
-    modelDescLite: 'Ieftin și rapid, potrivit pentru folosirea zilnică și pentru multe analize. Preț cu plată: 0,30 USD intrare / 2,50 USD ieșire la un milion de tokeni.',
-    modelDescFlash: 'Cel mai inteligent model din familia Flash, dar de circa 2,5 ori mai scump. Preț cu plată: 0,75 USD intrare / 3,75 USD ieșire la un milion de tokeni (până la sfârșitul lui 2026; din 2027: 1,50 / 7,50 USD).',
+    usageLabel: 'Utilizare tokeni (pe acest dispozitiv)',
+    usageHint: 'Numără cererile trimise de extensie către Gemini, tokenii lor și un cost estimat după tariful cu plată al modelului (în varianta gratuită nu se facturează nimic). Datele rămân doar pe acest dispozitiv și sunt o estimare după ce returnează Gemini. Facturarea reală apare în AI Studio.',
+    usageMonth: 'Luna aceasta: {0} cereri · intrare {1} · ieșire {2} tokeni · cost estimat {3}',
+    usageTotal: 'Total din {0}: {1} cereri · intrare {2} · ieșire {3} tokeni · cost estimat {4}',
+    usageNone: 'Încă nu există date. Vor apărea după prima analiză.',
+    usageReset: 'Resetează contorul',
+    usageResetConfirm: 'Resetați contorul de tokeni?',
+    usageResetDone: 'Contorul a fost resetat',
+    pricingLink: 'Prețurile Gemini API ↗',
+    modelDescLite: 'Ieftin și rapid, potrivit pentru folosirea zilnică și pentru multe analize.',
+    modelDescFlash: 'Cel mai inteligent model din familia Flash, dar mai scump.',
+    modelPrice: 'Preț cu plată: ${0} intrare / ${1} ieșire la un milion de tokeni.',
+    modelPriceFrom: 'Din {0}: ${1} / ${2}.',
     autoLabel: 'Analizează automat fiecare videoclip deschis',
     autoHint: 'Când este activat, analiza pornește imediat ce deschideți un videoclip, iar scorul apare pe pictogramă. Când este dezactivat, analiza rulează doar la clic pe pictogramă (economisește cota).',
     shortsDelayLabel: 'Așteptare înainte de analiza unui Short (secunde)',
@@ -267,9 +310,19 @@ const STRINGS = {
     apiKeyHint: 'Create a key at <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener">Google AI Studio</a>. The key is stored locally in your browser and sent only to Google\'s servers.',
     modelLabel: 'Model',
     modelHint: 'Default: gemini-3.5-flash-lite. "Check key" verifies that the key is valid and the selected model is available to your account.',
-    modelCustomHint: 'Or type another model name. If filled in, it overrides the choice above.',
-    modelDescLite: 'Cheap and fast, suited to everyday use and many analyses. Paid price: $0.30 input / $2.50 output per million tokens.',
-    modelDescFlash: 'The smartest Flash model, but about 2.5x more expensive. Paid price: $0.75 input / $3.75 output per million tokens (through 2026; from 2027: $1.50 / $7.50).',
+    usageLabel: 'Token usage (on this device)',
+    usageHint: 'Counts the requests the extension sent to Gemini, their tokens, and an estimated cost at the model\'s paid-tier price (nothing is actually billed on the free tier). Data stays on this device and is an estimate based on what Gemini returns. Actual billing is shown in AI Studio.',
+    usageMonth: 'This month: {0} requests · input {1} · output {2} tokens · estimated cost {3}',
+    usageTotal: 'Total since {0}: {1} requests · input {2} · output {3} tokens · estimated cost {4}',
+    usageNone: 'No data yet. It will appear after the first analysis.',
+    usageReset: 'Reset counter',
+    usageResetConfirm: 'Reset the token counter?',
+    usageResetDone: 'Counter reset',
+    pricingLink: 'Gemini API pricing ↗',
+    modelDescLite: 'Cheap and fast, suited to everyday use and many analyses.',
+    modelDescFlash: 'The smartest Flash model, but more expensive.',
+    modelPrice: 'Paid price: ${0} input / ${1} output per million tokens.',
+    modelPriceFrom: 'From {0}: ${1} / ${2}.',
     autoLabel: 'Automatically analyze every video I open',
     autoHint: 'When on, analysis starts as soon as you open a video and the score appears on the icon. When off, analysis runs only when you click the icon (saves quota).',
     shortsDelayLabel: 'Delay before analyzing a Short (seconds)',

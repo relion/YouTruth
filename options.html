@@ -53,13 +53,12 @@
 
     <label for="model" data-i18n="modelLabel"></label>
     <select id="model"></select>
-    <p class="hint" style="margin:10px 0 6px" data-i18n="modelCustomHint"></p>
-    <input id="modelCustom" type="text" spellcheck="false" autocomplete="off" placeholder="gemini-…">
     <p class="hint" data-i18n="modelHint"></p>
     <ul class="hint model-info">
-      <li><code>gemini-3.5-flash-lite</code> – <span data-i18n="modelDescLite"></span></li>
-      <li><code>gemini-3.8-flash</code> – <span data-i18n="modelDescFlash"></span></li>
+      <li><code>gemini-3.5-flash-lite</code> – <span data-i18n="modelDescLite"></span> <span data-price-for="gemini-3.5-flash-lite"></span></li>
+      <li><code>gemini-3.8-flash</code> – <span data-i18n="modelDescFlash"></span> <span data-price-for="gemini-3.8-flash"></span></li>
     </ul>
+    <p class="hint"><a href="https://aistudio.google.com/docs/pricing" target="_blank" rel="noopener" data-i18n="pricingLink"></a></p>
 
     <label class="check"><input id="autoAnalyze" type="checkbox"> <span data-i18n="autoLabel"></span></label>
     <p class="hint" data-i18n="autoHint"></p>
@@ -75,6 +74,12 @@
     <p class="hint" style="margin:0 0 6px" id="cacheMaxHint"></p>
     <input id="cacheMax" type="number" step="1" style="width:90px">
     <p class="hint" id="cacheInfo"></p>
+
+    <label data-i18n="usageLabel"></label>
+    <p class="hint" style="margin:0 0 6px" data-i18n="usageHint"></p>
+    <p style="margin:4px 0" id="usageMonth"></p>
+    <p style="margin:4px 0" id="usageTotal"></p>
+    <button id="resetUsage" type="button" style="margin-top:6px" data-i18n="usageReset"></button>
 
     <div class="actions">
       <button id="save" class="primary" data-i18n="save"></button>

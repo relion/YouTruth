@@ -55,7 +55,8 @@ const inflight = new Map(); // "videoId:lang" -> Promise
 const watchUrl = (id) => `https://www.youtube.com/watch?v=${id}`;
 
 async function getSettings() {
-  return chrome.storage.local.get(DEFAULTS);
+  const s = await chrome.storage.local.get(DEFAULTS);
+  return { ...s, model: normalizeModel(s.model) }; // a saved model that's no longer offered → default
 }
 
 const cacheKey = (videoId, lang) => `${videoId}:${lang}`;
@@ -69,6 +70,32 @@ async function putCached(key, entry) {
   const { cache = {}, cacheMax } = await chrome.storage.local.get({ cache: {}, cacheMax: DEFAULTS.cacheMax });
   cache[key] = entry;
   await chrome.storage.local.set({ cache: trimCache(cache, cacheMax) });
+}
+
+// ---------- cumulative token usage (this device only) ----------
+// tokenUsage = { since: <ts of first record>, months: { '2026-11': { '<model>': { calls, input, output, cost } } } }
+// `output` includes thinking tokens, which Gemini bills as output. `cost` is the estimated USD at the paid-tier
+// price in effect when the call was made (see MODEL_PRICES), so a later price change doesn't rewrite history.
+// Writes are chained so that analyses finishing at the same time don't overwrite each other.
+let usageQueue = Promise.resolve();
+
+function recordUsage(model, meta) {
+  if (!meta) return;
+  const input = meta.promptTokenCount || 0;
+  const output = (meta.candidatesTokenCount || 0) + (meta.thoughtsTokenCount || 0);
+  const price = priceFor(model);
+  const cost = price ? (input * price.input + output * price.output) / 1e6 : 0;
+  usageQueue = usageQueue.then(async () => {
+    const { tokenUsage } = await chrome.storage.local.get('tokenUsage');
+    const u = tokenUsage || { since: Date.now(), months: {} };
+    const month = (u.months[monthKey()] ||= {});
+    const m = (month[model] ||= { calls: 0, input: 0, output: 0, cost: 0 });
+    m.calls += 1;
+    m.input += input;
+    m.output += output;
+    m.cost += cost;
+    await chrome.storage.local.set({ tokenUsage: u });
+  }).catch((e) => log('usage record failed', e));
 }
 
 // The popup translates `code`; `detail` is an untranslated parameter (model name, API message…).
@@ -311,6 +338,8 @@ async function callGemini({ apiKey, model }, parts, withVideo, lengthSeconds) {
     if (res.status === 404 && /models\//.test(msg)) throw new AppError('BAD_MODEL', model);
     throw new AppError('API', msg);
   }
+
+  recordUsage(model, data?.usageMetadata); // tokens were spent even if the answer turns out unusable
 
   const cand = data?.candidates?.[0];
   const text = (cand?.content?.parts || [])

@@ -9,30 +9,74 @@ function setStatus(text, cls = '') {
 $('cacheMax').min = CACHE_MIN;
 $('cacheMax').max = CACHE_LIMIT;
 
-// The model is either one of the listed choices or a free-text name; a typed name takes precedence
-// (and greys out the list) so it's always clear which one will be used.
+// Only the listed models can be chosen; a previously saved model that is no longer offered shows as the default.
 function fillModelSelect(current) {
   $('model').replaceChildren(...MODEL_CHOICES.map((n) =>
     Object.assign(document.createElement('option'), { value: n, textContent: n })));
-  const listed = MODEL_CHOICES.includes(current);
-  $('model').value = listed ? current : DEFAULTS.model;
-  $('modelCustom').value = listed ? '' : current;
-  syncModelInputs();
+  $('model').value = normalizeModel(current);
 }
 
-function syncModelInputs() {
-  $('model').disabled = $('modelCustom').value.trim() !== '';
+const selectedModel = () => normalizeModel($('model').value);
+
+// Price shown next to each model, from MODEL_PRICES (plus an upcoming change, if one is scheduled).
+function paintModelPrices() {
+  const fmt = (n) => n.toLocaleString(LANGS[currentLang].locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const today = new Date().toISOString().slice(0, 10);
+  document.querySelectorAll('[data-price-for]').forEach((el) => {
+    const tiers = MODEL_PRICES[el.dataset.priceFor] || [];
+    const now = priceFor(el.dataset.priceFor);
+    const next = tiers.find((p) => p.from > today);
+    el.textContent = !now ? '' : [
+      t('modelPrice', fmt(now.input), fmt(now.output)),
+      next && t('modelPriceFrom', new Date(next.from).toLocaleDateString(LANGS[currentLang].locale, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }), fmt(next.input), fmt(next.output))
+    ].filter(Boolean).join(' ');
+  });
 }
-
-const selectedModel = () => $('modelCustom').value.trim() || $('model').value || DEFAULTS.model;
-
-$('modelCustom').addEventListener('input', syncModelInputs);
 
 // Shows how many analyses are stored right now versus the saved limit.
 async function paintCacheInfo() {
   const { cache = {}, cacheMax } = await chrome.storage.local.get({ cache: {}, cacheMax: DEFAULTS.cacheMax });
   $('cacheInfo').textContent = t('cacheInfo', Object.keys(cache).length, cacheMax);
 }
+
+// Cumulative token usage recorded by the service worker: this month + everything since tracking began.
+// tokenUsage = { since, months: { '2026-11': { '<model>': { calls, input, output, cost } } } }; cost is the
+// USD estimate computed at call time with the paid-tier price in effect then.
+async function paintUsage() {
+  const { tokenUsage } = await chrome.storage.local.get('tokenUsage');
+  const buckets = (months) => months.flatMap((m) => Object.values(m || {}));
+  const all = buckets(Object.values(tokenUsage?.months || {}));
+  if (all.length === 0) {
+    $('usageMonth').textContent = t('usageNone');
+    $('usageTotal').textContent = '';
+    $('resetUsage').hidden = true;
+    return;
+  }
+  const locale = LANGS[currentLang].locale;
+  const num = (n) => n.toLocaleString(locale);
+  const usd = (n) => n.toLocaleString(locale, { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  const sum = (list) => list.reduce((a, b) => ({
+    calls: a.calls + b.calls, input: a.input + b.input, output: a.output + b.output, cost: a.cost + (b.cost || 0)
+  }), { calls: 0, input: 0, output: 0, cost: 0 });
+  const month = sum(buckets([tokenUsage.months[monthKey()]]));
+  const total = sum(all);
+  $('usageMonth').textContent = t('usageMonth', num(month.calls), num(month.input), num(month.output), usd(month.cost));
+  $('usageTotal').textContent = t('usageTotal', new Date(tokenUsage.since).toLocaleDateString(locale),
+    num(total.calls), num(total.input), num(total.output), usd(total.cost));
+  $('resetUsage').hidden = false;
+}
+
+$('resetUsage').addEventListener('click', async () => {
+  if (!confirm(t('usageResetConfirm'))) return;
+  await chrome.storage.local.remove('tokenUsage');
+  setStatus(t('usageResetDone'), 'ok');
+  paintUsage();
+});
+
+// Keep the numbers current while the settings page stays open during analyses.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.tokenUsage) paintUsage();
+});
 
 function refreshTexts() {
   applyI18n();
@@ -41,9 +85,12 @@ function refreshTexts() {
   setStatus('');
   $('cacheMaxHint').textContent = t('cacheMaxHint', CACHE_MIN, CACHE_LIMIT);
   paintCacheInfo();
+  paintModelPrices();
+  paintUsage();
 }
 
 async function load() {
+  await chrome.storage.local.remove('usage'); // interim counter format without cost, superseded by tokenUsage
   const s = await chrome.storage.local.get(DEFAULTS);
   setLang(s.language);
   fillLangSelect($('language'));
