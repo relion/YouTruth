@@ -11,7 +11,11 @@ function detectLang() {
   return l === 'iw' ? 'he' : LANGS[l] ? l : 'en';
 }
 
-const DEFAULTS = { apiKey: '', model: 'gemini-3.5-flash-lite', autoAnalyze: true, shortsDelay: 4, showDetails: true, cacheMax: 60, language: detectLang() };
+const DEFAULTS = { apiKey: '', model: 'gemini-3.5-flash-lite', autoAnalyze: true, shortsDelay: 4, showDetails: true, cacheMax: 60, longVideoFps: 1, agentic: false, language: detectLang() };
+
+// Videos longer than this count as "long": they can be sampled at a lower frame rate, or analyzed agentically.
+const LONG_VIDEO_SECONDS = 300;
+const FPS_CHOICES = [1, 0.5, 0.25]; // frames per second sent to Gemini for long videos (1 = Gemini's default)
 // Models offered in the settings, with their paid-tier price in USD per 1M tokens (output includes thinking
 // tokens). Each model has price tiers by start date, so a scheduled price change is encoded here once.
 // Source: https://aistudio.google.com/docs/pricing (checked Nov 2026) – update when Google changes prices.
@@ -143,6 +147,13 @@ const STRINGS = {
     keyOkNoModel: 'המפתח תקין, אך המודל "{0}" לא נמצא ברשימה',
     errorPrefix: 'שגיאה: {0}',
     cacheCleared: 'התוצאות השמורות נמחקו',
+    fpsLabel: 'קצב דגימת פריימים בסרטונים ארוכים',
+    fpsHint: 'חל על סרטונים ארוכים מ-{0} דקות. קצב נמוך יותר שולח ל-Gemini פחות פריימים ולכן עולה פחות, אבל עלול לפספס שינויים חזותיים מהירים. הקול נשאר מלא. בסרטונים קצרים תמיד נשלח הקצב המלא. אם Gemini דוחה את ההגדרה, התוסף חוזר אוטומטית לקצב המלא.',
+    fpsOpt1: '1 לשנייה – דגימה מלאה (ברירת מחדל)',
+    fpsOpt05: '0.5 לשנייה – חוסך בערך 34% מהקלט',
+    fpsOpt025: '0.25 לשנייה – חוסך בערך 50% מהקלט',
+    agenticLabel: 'ניתוח "אג׳נטי" בסרטונים ארוכים (ניסיוני)',
+    agenticHint: 'המודל מחליט בעצמו אילו קטעים בסרטון לצפות בהם, במקום לקבל את כולו, וזה יכול לחסוך עד 88% מהטוקנים. חל רק על סרטונים ארוכים מ-{0} דקות ובמודלים שתומכים בכך. התכונה חדשה ולפעמים נכשלת; אז התוסף חוזר אוטומטית לניתוח הרגיל ולא ינסה שוב במשך 24 שעות. כשהיא פעילה, היא גוברת על קצב הדגימה.',
     cacheMaxLabel: 'מספר ניתוחים לשמירה',
     cacheMaxHint: 'כך נחסכות בקשות כשחוזרים לסרטון שכבר נותח. כשמגיעים למספר הזה, הניתוחים הישנים ביותר נמחקים. אפשר בין {0} ל-{1}. הקטנת המספר מוחקת מיד את העודף.',
     cacheInfo: 'ניתוחים שמורים כעת: {0} מתוך {1}'
@@ -240,6 +251,13 @@ const STRINGS = {
     keyOkNoModel: 'Cheia este validă, dar modelul „{0}” nu apare în listă',
     errorPrefix: 'Eroare: {0}',
     cacheCleared: 'Rezultatele salvate au fost șterse',
+    fpsLabel: 'Frecvența de eșantionare a cadrelor la videoclipurile lungi',
+    fpsHint: 'Se aplică videoclipurilor mai lungi de {0} minute. O frecvență mai mică trimite mai puține cadre către Gemini și costă mai puțin, dar poate rata schimbări vizuale rapide. Sunetul rămâne complet. La videoclipurile scurte se trimite mereu frecvența completă. Dacă Gemini refuză setarea, extensia revine automat la frecvența completă.',
+    fpsOpt1: '1 pe secundă – eșantionare completă (implicit)',
+    fpsOpt05: '0,5 pe secundă – economisește cam 34% din intrare',
+    fpsOpt025: '0,25 pe secundă – economisește cam 50% din intrare',
+    agenticLabel: 'Analiză „agentică” la videoclipurile lungi (experimental)',
+    agenticHint: 'Modelul alege singur ce părți din videoclip să urmărească, în loc să primească tot videoclipul, ceea ce poate economisi până la 88% din tokeni. Se aplică doar videoclipurilor mai lungi de {0} minute și modelelor care o suportă. Funcția este nouă și uneori eșuează; atunci extensia revine automat la analiza obișnuită și nu mai încearcă 24 de ore. Dacă este activă, are prioritate față de frecvența de eșantionare.',
     cacheMaxLabel: 'Câte analize se păstrează',
     cacheMaxHint: 'Așa se economisesc cereri când reveniți la un videoclip deja analizat. Când se atinge acest număr, cele mai vechi analize se șterg. Puteți alege între {0} și {1}. Dacă micșorați numărul, surplusul se șterge imediat.',
     cacheInfo: 'Analize salvate acum: {0} din {1}'
@@ -337,6 +355,13 @@ const STRINGS = {
     keyOkNoModel: 'Key is valid, but model "{0}" is not in the list',
     errorPrefix: 'Error: {0}',
     cacheCleared: 'Saved results cleared',
+    fpsLabel: 'Frame sampling rate for long videos',
+    fpsHint: 'Applies to videos longer than {0} minutes. A lower rate sends Gemini fewer frames so it costs less, but may miss fast visual changes. Audio stays complete. Short videos always use the full rate. If Gemini rejects the setting, the extension falls back to the full rate automatically.',
+    fpsOpt1: '1 per second – full sampling (default)',
+    fpsOpt05: '0.5 per second – saves about 34% of input',
+    fpsOpt025: '0.25 per second – saves about 50% of input',
+    agenticLabel: 'Agentic analysis for long videos (experimental)',
+    agenticHint: 'The model decides which parts of the video to watch instead of receiving all of it, which can save up to 88% of tokens. Applies only to videos longer than {0} minutes and to models that support it. The feature is new and sometimes fails; the extension then falls back to normal analysis and won\'t retry for 24 hours. When on, it takes precedence over the sampling rate.',
     cacheMaxLabel: 'Number of analyses to keep',
     cacheMaxHint: 'This saves requests when you return to a video that was already analyzed. When this number is reached, the oldest analyses are removed. Allowed range: {0} to {1}. Lowering it removes the extra ones right away.',
     cacheInfo: 'Currently saved analyses: {0} of {1}'

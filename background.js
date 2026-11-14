@@ -81,7 +81,8 @@ let usageQueue = Promise.resolve();
 
 function recordUsage(model, meta) {
   if (!meta) return;
-  const input = meta.promptTokenCount || 0;
+  // Agentic video analysis loads frames/audio on demand; those arrive as tool-use tokens and are billed as input.
+  const input = (meta.promptTokenCount || 0) + (meta.toolUsePromptTokenCount || 0);
   const output = (meta.candidatesTokenCount || 0) + (meta.thoughtsTokenCount || 0);
   const price = priceFor(model);
   const cost = price ? (input * price.input + output * price.output) / 1e6 : 0;
@@ -336,7 +337,7 @@ async function callGemini({ apiKey, model }, parts, withVideo, lengthSeconds) {
     if (res.status === 429) throw new AppError('QUOTA');
     if (/API key/i.test(msg) || res.status === 401) throw new AppError('BAD_KEY');
     if (res.status === 404 && /models\//.test(msg)) throw new AppError('BAD_MODEL', model);
-    throw new AppError('API', msg);
+    throw Object.assign(new AppError('API', msg), { status: res.status });
   }
 
   recordUsage(model, data?.usageMetadata); // tokens were spent even if the answer turns out unusable
@@ -452,6 +453,49 @@ async function getStats(tabId, videoId) {
   return statsComplete(fromTab) ? fromTab : mergeStats(fromTab, await fetchStats(videoId));
 }
 
+// ---------- video analysis modes ----------
+// Long videos can be sent with a lower frame rate (videoMetadata.fps) or analyzed "agentically" (the model fetches
+// only the parts it needs). Both are optional cost savers. If Gemini rejects one (HTTP 400) we silently fall back to
+// the next, plain request, and remember the rejection for 24h so every analysis doesn't pay for a failed attempt.
+const FEATURE_RETRY_MS = 24 * 60 * 60 * 1000;
+
+async function featureUsable(name) {
+  const { featureFails = {} } = await chrome.storage.local.get('featureFails');
+  return !(featureFails[name] && Date.now() - featureFails[name] < FEATURE_RETRY_MS);
+}
+
+async function markFeatureFailed(name) {
+  const { featureFails = {} } = await chrome.storage.local.get('featureFails');
+  featureFails[name] = Date.now();
+  await chrome.storage.local.set({ featureFails });
+}
+
+async function analyzeWithVideo(settings, meta, lang, length) {
+  const long = length > LONG_VIDEO_SECONDS;
+  const attempts = [];
+  if (long && settings.agentic && await featureUsable('agentic')) {
+    attempts.push({ name: 'agentic', part: { mediaProcessing: 'AGENTIC' } });
+  }
+  if (long && settings.longVideoFps < 1 && await featureUsable('fps')) {
+    attempts.push({ name: 'fps', part: { videoMetadata: { fps: settings.longVideoFps } } });
+  }
+  attempts.push({ name: 'plain', part: {} });
+
+  for (const [i, attempt] of attempts.entries()) {
+    try {
+      return await callGemini(settings, [
+        { fileData: { fileUri: meta.url }, ...attempt.part },
+        { text: buildPrompt(meta, true, lang) }
+      ], true, length);
+    } catch (e) {
+      const recoverable = ['API', 'EMPTY', 'PARSE'].includes(e.code);
+      if (i === attempts.length - 1 || !recoverable) throw e;
+      console.warn(`YouTruth: "${attempt.name}" video mode failed, trying the next one`, e);
+      if (e.code === 'API' && e.status === 400) await markFeatureFailed(attempt.name);
+    }
+  }
+}
+
 async function runAnalysis(videoId, lang, tabId) {
   const settings = await getSettings();
   if (!settings.apiKey) throw new AppError('NO_KEY');
@@ -461,10 +505,7 @@ async function runAnalysis(videoId, lang, tabId) {
   let result;
   let partial = false;
   try {
-    result = await callGemini(settings, [
-      { fileData: { fileUri: meta.url } },
-      { text: buildPrompt(meta, true, lang) }
-    ], true, stats?.lengthSeconds);
+    result = await analyzeWithVideo(settings, meta, lang, stats?.lengthSeconds || 0);
   } catch (e) {
     // Key / quota / model problems won't be fixed by retrying without the video.
     if (['NO_KEY', 'BAD_KEY', 'QUOTA', 'BAD_MODEL', 'NETWORK'].includes(e.code)) throw e;

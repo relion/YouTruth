@@ -18,6 +18,18 @@ function fillModelSelect(current) {
 
 const selectedModel = () => normalizeModel($('model').value);
 
+// Frame rate for long videos; the option labels are translated, so the list is rebuilt on language change.
+const FPS_LABELS = { 1: 'fpsOpt1', 0.5: 'fpsOpt05', 0.25: 'fpsOpt025' };
+function fillFpsSelect(current) {
+  $('longVideoFps').replaceChildren(...FPS_CHOICES.map((f) =>
+    Object.assign(document.createElement('option'), { value: String(f), textContent: t(FPS_LABELS[f]) })));
+  $('longVideoFps').value = String(FPS_CHOICES.includes(Number(current)) ? Number(current) : DEFAULTS.longVideoFps);
+}
+const selectedFps = () => {
+  const f = parseFloat($('longVideoFps').value);
+  return FPS_CHOICES.includes(f) ? f : DEFAULTS.longVideoFps;
+};
+
 // Price shown next to each model, from MODEL_PRICES (plus an upcoming change, if one is scheduled).
 function paintModelPrices() {
   const fmt = (n) => n.toLocaleString(LANGS[currentLang].locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -81,6 +93,9 @@ function refreshTexts() {
   $('toggleKey').textContent = t($('apiKey').type === 'password' ? 'show' : 'hide');
   setStatus('');
   $('cacheMaxHint').textContent = t('cacheMaxHint', CACHE_MIN, CACHE_LIMIT);
+  $('fpsHint').textContent = t('fpsHint', LONG_VIDEO_SECONDS / 60);
+  $('agenticHint').textContent = t('agenticHint', LONG_VIDEO_SECONDS / 60);
+  fillFpsSelect(selectedFps());
   paintCacheInfo();
   paintModelPrices();
   paintUsage();
@@ -97,6 +112,8 @@ async function load() {
   $('showDetails').checked = s.showDetails;
   $('shortsDelay').value = s.shortsDelay;
   $('cacheMax').value = s.cacheMax;
+  fillFpsSelect(s.longVideoFps);
+  $('agentic').checked = s.agentic;
   refreshTexts();
 }
 
@@ -120,10 +137,14 @@ $('save').addEventListener('click', async () => {
   const cacheMax = Number.isFinite(max) ? Math.max(CACHE_MIN, Math.min(CACHE_LIMIT, max)) : DEFAULTS.cacheMax;
   $('cacheMax').value = cacheMax;
   const { cache = {} } = await chrome.storage.local.get('cache');
-  await chrome.storage.local.remove('autoShorts'); // old setting, no longer used
+  // 'autoShorts' is an old setting; 'featureFails' is the 24h back-off after Gemini rejected fps/agentic –
+  // saving the settings clears it so the user can try again right away.
+  await chrome.storage.local.remove(['autoShorts', 'featureFails']);
   await chrome.storage.local.set({
     shortsDelay,
     cacheMax,
+    longVideoFps: selectedFps(),
+    agentic: $('agentic').checked,
     cache: trimCache(cache, cacheMax), // lowering the limit drops the oldest extras at once
     language: currentLang,
     apiKey: $('apiKey').value.trim(),
